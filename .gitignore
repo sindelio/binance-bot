@@ -1,0 +1,8 @@
+# Ignore my API secrets
+binance_api_secrets.txt
+
+# Ignore Node JS modules files
+node_modules
+
+# Ignore my private bot
+bot.js
