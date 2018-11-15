@@ -46,10 +46,14 @@ Then move into the cloned directory:
 `
 cd binance_bot
 `
+
 Install the module dependencies:
+
 ```
 $ yarn
 ```
+
+Make sure the directory path name has no spaces or Yarn will complain!
 
 # Running
 
