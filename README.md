@@ -14,6 +14,7 @@ The bot is fully written in Javascript.
 
 The bot is set for XRP/USDT trading in Binance. Every minute the bot updates the prices with the latest closing price for candlesticks 1min from Binance, calculates the stochRSI indicator, smoothes the stochRSI with an Ehlers filter and make a buy order if the smoothed indicator shows an oversold situation. Then, the bot awaits to sell with a small profit margin, which can be set in the code (default 0.2%).
 It's also simple to change the code for another trading pair.
+
 The bot relies only in the StochRSI + Ehlers filter logic, so it's quite simple.
 
 # Dependencies 
@@ -28,14 +29,34 @@ The bot depends on the following Node modules:
 
 # Setup
 
+Clone the repository with HTTPS:
+
+```
+$ git clone https://github.com/sindelio/binance_bot.git
+```
+
+Or with SSH: 
+
+`
+$ git clone git@github.com:sindelio/binance_bot.git
+`
+
+Then move into the cloned directory:
+
+`
+cd binance_bot
+`
+Install the module dependencies:
 ```
 $ yarn
 ```
 
 # Running
 
+Inside the project root directory (/bot_binance):
+
 ```
-node bot_public.js
+$ node bot_public.js
 ```
 
 # Contributions
