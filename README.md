@@ -17,6 +17,15 @@ It's also simple to change the code for another trading pair.
 
 The bot relies only in the StochRSI + Ehlers filter logic, so it's quite simple.
 
+# Future development
+
+I will continue evolving this bot in the second semester of 2019. 
+Here are some points that deserve attention:
+
+- Implement a stop logic if prices drop too low, to cut losses.
+- Use more data points for the stochRSI indicator.
+- Consider other technical indicators to create a more elaborate logic.
+
 # Dependencies 
 
 - [NodeJS](https://nodejs.org/en/) to run Javascript outside a browser
