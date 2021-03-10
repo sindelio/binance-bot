@@ -81,7 +81,8 @@ const calculateEMADiff = async (openingPrices, closingPrices) => {
 
 	const result = ema2.subtract(ema1);
 
-	console.log("PREVIOUS EMA DIFFERENCE : ", result[0], "\nCURRENT EMA DIFFERENCE : ", result[1]);
+	console.log("PREVIOUSLY, EMA1 : ", ema1[0], " EMA2 : ", ema2[0]);
+	console.log("CURRENTLY, EMA1 : ", ema1[1], " EMA2 : ", ema2[1]);
 
 	return ema2.subtract(ema1);
 }
