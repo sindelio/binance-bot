@@ -8,8 +8,8 @@ const client = Binance({
 });
 
 const COIN_PAIR = 'BANDUSDT';
-const CANDLE_INTERVAL = '5m';
-const WAIT_TIME_MS = 1000 * 60 * 5; // 5 minutes
+const CANDLE_INTERVAL = '15m';
+const WAITING_TIME_MS = 1000 * 60 * 15; // 15 minutes
 
 // VARIABLES - Binance API
 let buyOrderInfo = null;
@@ -31,7 +31,7 @@ const sync = async () => {
 	console.log('WAITING FOR', CANDLE_INTERVAL, '...');
 
 	const serverTime = await client.time();
-	const timeDifference = serverTime % (WAIT_TIME_MS);
+	const timeDifference = serverTime % (WAITING_TIME_MS);
 	await wait(timeDifference + 1000); // Waits 1s more to make sure the prices were updated
 
 	console.log('WAITING IS FINISHED !');
