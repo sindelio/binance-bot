@@ -1,5 +1,5 @@
 # Ignore my API secrets
-binance_api_secrets.txt
+binance_secrets.json
 
 # Ignore Node JS modules files
 node_modules

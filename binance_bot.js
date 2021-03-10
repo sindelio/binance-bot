@@ -1,10 +1,19 @@
-const Binance = require('binance-api-node').default;
+const BinanceServer = require('binance-api-node').default;
+const BinanceTrader = require('node-binance-api');
+
 const { EMA } = require('technicalindicators');
 
 // Creates the API caller/requester as an authenticated client, which can make signed calls
-const client = Binance({
-  apiKey: 'YOUR_API_KEY',
-  apiSecret: 'YOUR_API_SECRET',
+const BINANCE_API_KEY = require("./binance_secrets.json");
+
+const binanceServer = BinanceServer({
+	apiKey: BINANCE_API_KEY.api_key,
+	apiSecret: BINANCE_API_KEY.api_secret,
+});
+
+const binanceTrader = new BinanceTrader().options({
+	APIKEY: BINANCE_API_KEY.api_key,
+	APISECRET: BINANCE_API_KEY.api_secret
 });
 
 const COIN_PAIR = 'BANDUSDT';
@@ -15,7 +24,7 @@ const WAITING_TIME_MS = 1000 * 60 * 15; // 15 minutes
 let buyOrderInfo = null;
 let sellOrderInfo = null;
 
-const INDEX_USDT = 14;
+const INDEX_USDT = 11;
 const PRICE_UPDATE_PERIOD = 5000; // Price update times varies a lot
 const ORDER_UPDATE_PERIOD = 3000;
 
@@ -29,25 +38,21 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 // Synchronizes with the Binance API server
 const sync = async () => {
 	console.log('WAITING FOR', CANDLE_INTERVAL, '...');
-
-	const serverTime = await client.time();
-	const timeDifference = serverTime % (WAITING_TIME_MS);
-	await wait(timeDifference + 1000); // Waits 1s more to make sure the prices were updated
-
+	await wait(WAITING_TIME_MS); // Waits 1s more to make sure the prices were updated
 	console.log('WAITING IS FINISHED !');
 }
 
 
 // Updates the input for the EMA calculation. It adds the newest price and removes the oldest one.
-const fetchPrices = async () => {
-	console.log('FETCHING PRICES...');
+const fetchCandles = async () => {
+	console.log('FETCHING CANDLES...');
 	
-	const candles = await client.candles({
+	const candles = await binanceServer.candles({
 		symbol: COIN_PAIR,
 		interval: CANDLE_INTERVAL,
 	});
 
-	const prices = {
+	const newCandles = {
 		opening : {
 			values: [],
 			times: [],
@@ -59,14 +64,14 @@ const fetchPrices = async () => {
 	}
 
 	for(let i = 0; i < candles.length; ++i) {
-		prices.opening.values[i] = Number(candles[i].open);
-		prices.opening.times[i] = candles[i].openTime;
+		newCandles.opening.values[i] = Number(candles[i].open);
+		newCandles.opening.times[i] = candles[i].openTime;
 
-		prices.closing.values[i] = Number(candles[i].close);
-		prices.closing.times[i] = candles[i].closeTime;
+		newCandles.closing.values[i] = Number(candles[i].close);
+		newCandles.closing.times[i] = candles[i].closeTime;
 	}
 
-	return prices;
+	return newCandles;
 }
 
 const calculateEMADiff = async (openingPrices, closingPrices) => {
@@ -84,28 +89,20 @@ const calculateEMADiff = async (openingPrices, closingPrices) => {
 	console.log("PREVIOUSLY, EMA1 : ", ema1[0], " EMA2 : ", ema2[0]);
 	console.log("CURRENTLY, EMA1 : ", ema1[1], " EMA2 : ", ema2[1]);
 
-	return ema2.subtract(ema1);
+	return result;
 }
 
 // Calculates how much of the asset(coin) the program can buy. The quantity is floored to an integer
 const calculateBuyQuantity = async () => {
 	console.log('CALCULATING BUY QUANTITY');
-	let accountInfo = await client.accountInfo();
-	let USDTBalance = accountInfo.balances[INDEX_USDT].free;
 
-	// Maximum 15 USD is used for buying
-	if(USDTBalance > 15){
-		USDTBalance = 15;
-	}
+	const accountInfo = await binanceServer.accountInfo();
+	const prices = await binanceServer.prices();
 
-	console.log('USDT balance: ', USDTBalance);
+	const USDTBalance = accountInfo.balances[INDEX_USDT].free;
+	const currentPrice = prices.BANDUSDT;
 
-	const prices = await client.prices({ symbol: COIN_PAIR });
-	const currentPrice = prices.XRPUSDT;
-
-	console.log(COIN_PAIR, ' Price: ', currentPrice);
-
-	const buyQuantity = Math.floor(0.99 * (USDTBalance / currentPrice));
+	const buyQuantity = USDTBalance / currentPrice;
 
 	console.log('BuyQuantity: ', buyQuantity, '\n');
 
@@ -116,16 +113,17 @@ const calculateBuyQuantity = async () => {
 }
 
 // Creates a buy order in the Binance API
-const makeBuyOrder = async (buyQuantity, currentPrice) => {
+const makeBuyOrder = async ({quantity, price} = {}) => {
 	console.log('MAKING BUY ORDER');
-	buyOrderInfo = await client.order({
+	
+	const buyOrderInfo = await binanceServer.order({
 		symbol: COIN_PAIR,
 		side: 'BUY',
-		quantity: buyQuantity,
-		price: currentPrice,
+		quantity: quantity.toString(),
+    	price: price.toString()
 	});
 
-	console.log('buyOrderInfo: ', buyOrderInfo, '\n');
+	return buyOrderInfo
 }
 
 // Waits till a buy order is completely filled or times out empty
@@ -286,17 +284,25 @@ const sell = async () => {
 
 // Main function, entrance point for the program
 (async function main() {
-	let prices = null; let emaDifferences = null; 
-	while(true){
+	let candles = null; let emaDifferences = null;
+
+	try {
+		await makeBuyOrder({quantity: 2, price: 5});
+	} catch (e) {
+		console.error('ERROR IN makeBuyOrder(): ', e);
+		process.exit(-1);
+	}
+
+	while(false){
 		try {
-			prices = await fetchPrices();
+			candles = await fetchCandles();
 		} catch (e) {
 			console.error('ERROR IN updateInputEMA(): ', e);
 			process.exit(-1);
 		}
 
 		try {
-			emaDifferences = await calculateEMADiff(prices.opening.values, prices.closing.values);
+			emaDifferences = await calculateEMADiff(candles.opening.values, candles.closing.values);
 		} catch (e) {
 			console.error('ERROR IN calculateEMA(): ', e);
 			process.exit(-1);
@@ -313,9 +319,6 @@ const sell = async () => {
 			// %1 üstüne satış koy yarısı için
 			// %1 üstüne diğer yarısı için "trailing-stop-loss" işlemi başlat
 		}
-		
-		
-		
 
 		// if(smoothedEMA < BUY_LIMIT){ // Buy condition
 		// 	try {
