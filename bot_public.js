@@ -28,13 +28,13 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Synchronizes with the Binance API server
 const sync = async () => {
-	console.log('SYNCING ...');
+	console.log('WAITING FOR', CANDLE_INTERVAL, '...');
+
 	const serverTime = await client.time();
-	console.log('serverTime: ', serverTime);
 	const timeDifference = serverTime % (WAIT_TIME_MS);
-	console.log('timeDifference: ', timeDifference);
 	await wait(timeDifference + 1000); // Waits 1s more to make sure the prices were updated
-	console.log('SYNCED WITH BINANCE SERVER! \n');
+
+	console.log('WAITING IS FINISHED !');
 }
 
 
@@ -81,8 +81,8 @@ const calculateEMADiff = async (openingPrices, closingPrices) => {
 
 	const result = ema2.subtract(ema1);
 
-	console.log("PREVIOUS EMA DIFFERENCE : ", result[0], " CURRENT EMA DIFFERENCE : ", result[1]);
-	
+	console.log("PREVIOUS EMA DIFFERENCE : ", result[0], "\nCURRENT EMA DIFFERENCE : ", result[1]);
+
 	return ema2.subtract(ema1);
 }
 
