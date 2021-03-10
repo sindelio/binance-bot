@@ -9,6 +9,7 @@ const client = Binance({
 
 const COIN_PAIR = 'BANDUSDT';
 const CANDLE_INTERVAL = '5m';
+const WAIT_TIME_MS = 1000 * 60 * 5; // 5 minutes
 
 // VARIABLES - Binance API
 let buyOrderInfo = null;
@@ -17,17 +18,6 @@ let sellOrderInfo = null;
 const INDEX_USDT = 14;
 const PRICE_UPDATE_PERIOD = 5000; // Price update times varies a lot
 const ORDER_UPDATE_PERIOD = 3000;
-
-// VARIABLES - EMA
-let lowerEMAInput = {
-	period: 13,
-    values: [],
-};
-
-let higherEMAInput = {
-	period: 21,
-    values: [],
-};
 
 const BUY_LIMIT = 5; 
 
@@ -41,7 +31,7 @@ const sync = async () => {
 	console.log('SYNCING ...');
 	const serverTime = await client.time();
 	console.log('serverTime: ', serverTime);
-	const timeDifference = serverTime % 60000;
+	const timeDifference = serverTime % (WAIT_TIME_MS);
 	console.log('timeDifference: ', timeDifference);
 	await wait(timeDifference + 1000); // Waits 1s more to make sure the prices were updated
 	console.log('SYNCED WITH BINANCE SERVER! \n');
@@ -49,32 +39,51 @@ const sync = async () => {
 
 
 // Updates the input for the EMA calculation. It adds the newest price and removes the oldest one.
-const updateInputEMA = async () => {
-	console.log('UPDATING PRICES...');
-
+const fetchPrices = async () => {
+	console.log('FETCHING PRICES...');
+	
 	const candles = await client.candles({
 		symbol: COIN_PAIR,
 		interval: CANDLE_INTERVAL,
 	});
 
-	for(let i = 0; i < candles.length; ++i){
-		lowerEMAInput.values[i] = Number(candles[i].close);
-		higherEMAInput.values[i] = Number(candles[i].open)
+	const prices = {
+		opening : {
+			values: [],
+			times: [],
+		},
+		closing : {
+			values: [],
+			times: [],
+		},
 	}
+
+	for(let i = 0; i < candles.length; ++i) {
+		prices.opening.values[i] = Number(candles[i].open);
+		prices.opening.times[i] = candles[i].openTime;
+
+		prices.closing.values[i] = Number(candles[i].close);
+		prices.closing.times[i] = candles[i].closeTime;
+	}
+
+	return prices;
 }
 
-const calculateEMA = async () => {
-	console.log('CALCULATING EMA');
+const calculateEMADiff = async (openingPrices, closingPrices) => {
+	console.log('CALCULATING EMA DIFFERENCE...');
 
-	const ema1 = EMA.calculate(lowerEMAInput).last();
-	const ema2 = EMA.calculate(higherEMAInput).last();
+	let ema1 = EMA.calculate({period: 13, values: closingPrices});
+	let ema2 = EMA.calculate({period: 21, values: openingPrices});
 
-	console.log('EMA-', lowerEMAInput.period , ' :', ema1, '\nEMA-', higherEMAInput.period ,':', ema2);
+	common_length = 2;
+	ema1 = ema1.slice(-common_length);
+	ema2 = ema2.slice(-common_length);
 
-	return {
-		ema1,
-		ema2
-	}
+	const result = ema2.subtract(ema1);
+
+	console.log("PREVIOUS EMA DIFFERENCE : ", result[0], " CURRENT EMA DIFFERENCE : ", result[1]);
+	
+	return ema2.subtract(ema1);
 }
 
 // Calculates how much of the asset(coin) the program can buy. The quantity is floored to an integer
@@ -120,7 +129,6 @@ const makeBuyOrder = async (buyQuantity, currentPrice) => {
 
 // Waits till a buy order is completely filled or times out empty
 const waitBuyOrderCompletion = async () => {
-
 	console.log('WAITING BUY ORDER COMPLETION');
 
 	for(let i = 0; i < 5;	i++){
@@ -276,43 +284,55 @@ const sell = async () => {
 }
 
 // Main function, entrance point for the program
-(async function main(){
+(async function main() {
+	let prices = null; let emaDifferences = null; 
 	while(true){
 		try {
-			await updateInputEMA();
+			prices = await fetchPrices();
 		} catch (e) {
 			console.error('ERROR IN updateInputEMA(): ', e);
 			process.exit(-1);
 		}
 
 		try {
-			calculatedEMAs = await calculateEMA();
+			emaDifferences = await calculateEMADiff(prices.opening.values, prices.closing.values);
 		} catch (e) {
 			console.error('ERROR IN calculateEMA(): ', e);
 			process.exit(-1);
 		}
-		
-		// if ema1 starts to pass ema2 value (look for old ema values)
-		// %1 altına stop-loss koy
-		// %1 üstüne satış koy yarısı için
-		// %1 üstüne diğer yarısı için "trailing-stop-loss" işlemi başlat
 
-		if(smoothedEMA < BUY_LIMIT){ // Buy condition
-			try {
-				buySuccess = await buy();	
-			} catch (e) {
-				console.error('ERROR IN buy(): ', e);
-				console.log('RESUMING OPERATIONS\n');
-				continue;
-			}
-			if(buySuccess === 'failure') continue;
-			try {
-				await sell();		
-			} catch (e) {
-				console.error('ERROR IN sell(): ', e);
-				process.exit(-1);
-			}			
+		const prev = emaDifferences[emaDifferences.length - 2];
+		const curr = emaDifferences.last();
+
+		// previously ema2 > ema1 and currently ema2 < ema1
+		if(prev > 0 && curr < 0) {
+			const time = new Date(prices.opening.times.last());
+			console.log("ALIM FIRSATI : ", time.toLocaleTimeString());
+			// %1 altına stop-loss koy
+			// %1 üstüne satış koy yarısı için
+			// %1 üstüne diğer yarısı için "trailing-stop-loss" işlemi başlat
 		}
+		
+		
+		
+
+		// if(smoothedEMA < BUY_LIMIT){ // Buy condition
+		// 	try {
+		// 		buySuccess = await buy();	
+		// 	} catch (e) {
+		// 		console.error('ERROR IN buy(): ', e);
+		// 		console.log('RESUMING OPERATIONS\n');
+		// 		continue;
+		// 	}
+		// 	if(buySuccess === 'failure') continue;
+		// 	try {
+		// 		await sell();		
+		// 	} catch (e) {
+		// 		console.error('ERROR IN sell(): ', e);
+		// 		process.exit(-1);
+		// 	}			
+		// }
+
 		await sync();
 	}
 })();
@@ -321,5 +341,18 @@ const sell = async () => {
 if (!Array.prototype.last){
     Array.prototype.last = function(){
         return this[this.length - 1];
+    };
+};
+
+if (!Array.prototype.subtract){
+    Array.prototype.subtract = function(other_array){
+        const result = [];
+
+		for(let i = 0; i < this.length; ++i){
+			result[i] = this[i] - other_array[i];
+		};
+
+		return result;
+		
     };
 };
