@@ -32,6 +32,26 @@ const BUY_LIMIT = 5;
 
 // FUNCTIONS
 
+// PROTOTYPE FUNCTIONS
+if (!Array.prototype.last){
+    Array.prototype.last = function(){
+        return this[this.length - 1];
+    };
+};
+
+if (!Array.prototype.subtract){
+    Array.prototype.subtract = function(other_array){
+        const result = [];
+
+		for(let i = 0; i < this.length; ++i){
+			result[i] = this[i] - other_array[i];
+		};
+
+		return result;
+		
+    };
+};
+
 // Pauses execution for a specified amount of time
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -42,15 +62,20 @@ const sync = async () => {
 	console.log('WAITING IS FINISHED !');
 }
 
-
-// Updates the input for the EMA calculation. It adds the newest price and removes the oldest one.
-const fetchCandles = async () => {
-	console.log('FETCHING CANDLES...');
+// Adjust the input for the EMA calculation
+const fetch_initial_candles = async (symbol, interval, limit = 200) => {
+	console.log('FETCHING INITIAL CANDLES...');
 	
-	const candles = await binanceServer.candles({
-		symbol: COIN_PAIR,
-		interval: CANDLE_INTERVAL,
-	});
+	let candles = [];
+	try {
+		candles = await binanceServer.candles({
+			symbol: symbol,
+			interval: interval,
+		});
+	} catch (e) {
+		console.error('Error fetching the initial candles : ', e);
+		return null;
+	}
 
 	const newCandles = {
 		opening : {
@@ -63,36 +88,29 @@ const fetchCandles = async () => {
 		},
 	}
 
-	for(let i = 0; i < candles.length; ++i) {
-		newCandles.opening.values[i] = Number(candles[i].open);
-		newCandles.opening.times[i] = candles[i].openTime;
+	const start = candles.length > limit ? candles.length - limit : 0;
 
-		newCandles.closing.values[i] = Number(candles[i].close);
-		newCandles.closing.times[i] = candles[i].closeTime;
+	for(let i = start; i < candles.length; ++i) {
+		newCandles.opening.values[i - start] = Number(candles[i].open);
+		newCandles.opening.times[i - start] = candles[i].openTime;
+
+		newCandles.closing.values[i - start] = Number(candles[i].close);
+		newCandles.closing.times[i - start] = candles[i].closeTime;
 	}
 
 	return newCandles;
 }
 
 const calculateEMADiff = async (openingPrices, closingPrices) => {
-	console.log('CALCULATING EMA DIFFERENCE...');
+	const ema1 = EMA.calculate({period: 13, values: closingPrices});
+	const ema2 = EMA.calculate({period: 21, values: openingPrices});
 
-	let ema1 = EMA.calculate({period: 13, values: closingPrices});
-	let ema2 = EMA.calculate({period: 21, values: openingPrices});
-
-	common_length = 2;
-	ema1 = ema1.slice(-common_length);
-	ema2 = ema2.slice(-common_length);
-
-	const result = ema2.subtract(ema1);
-
-	console.log("PREVIOUSLY, EMA1 : ", ema1[0], " EMA2 : ", ema2[0]);
-	console.log("CURRENTLY, EMA1 : ", ema1[1], " EMA2 : ", ema2[1]);
+	const result = ema2.last() - ema1.last();
 
 	return result;
 }
 
-// Calculates how much of the asset(coin) the program can buy. The quantity is floored to an integer
+// Calculates how much of the asset(coin) the program can buy.
 const calculateBuyQuantity = async () => {
 	console.log('CALCULATING BUY QUANTITY');
 
@@ -123,7 +141,7 @@ const makeBuyOrder = async ({quantity, price} = {}) => {
     	price: price.toString()
 	});
 
-	return buyOrderInfo
+	return buyOrderInfo;
 }
 
 // Waits till a buy order is completely filled or times out empty
@@ -282,81 +300,79 @@ const sell = async () => {
 	}
 }
 
-// Main function, entrance point for the program
-(async function main() {
-	let candles = null; let emaDifferences = null;
+const add_candle = (candles, latest_candle) => {
+	candles.opening.values.shift();
+	candles.opening.times.shift();
+	candles.closing.values.shift();
+	candles.closing.times.shift();
+	
+	candles.opening.values.push(Number(latest_candle.open));
+	candles.opening.times.push(latest_candle.startTime);
+	candles.closing.values.push(Number(latest_candle.close));
+	candles.closing.times.push(latest_candle.closeTime);
+}
 
-	try {
-		await makeBuyOrder({quantity: 2, price: 5});
-	} catch (e) {
-		console.error('ERROR IN makeBuyOrder(): ', e);
-		process.exit(-1);
-	}
+// Main function, entrance point for the program
+const start = async (symbol, interval) => {
+	const candles = await fetch_initial_candles(symbol, interval, 400);
+	let prev_ema_diff = calculateEMADiff(candles.opening.values, candles.closing.values);
+
+	binanceServer.ws.candles(symbol, interval, tick => {
+		const {
+			open: open, 
+			close: close
+		} = tick;
+
+		console.log("FETCHING CURRENT PRICE FOR ", symbol, ": open", tick.open, "close", tick.close);
+		const openingPrices = candles.opening.values.concat(open);
+		const closingPrices = candles.closing.values.concat(close);
+		openingPrices.shift();
+		closingPrices.shift();
+		const curr_ema_diff = calculateEMADiff(openingPrices, closingPrices);
+		
+		if(prev_ema_diff > 0 && curr_ema_diff <= 0){
+			console.log("PREVIOUS DIFFERENCE : ", prev_ema_diff, "CURRENT DIFFERENCE : ", curr_ema_diff);
+
+			const time = new Date(tick.eventTime);
+			console.log("ALIM FIRSATI : ", time.toLocaleTimeString());
+		}
+
+		if(tick.isFinal) {
+			add_candle(candles, tick);
+			prev_ema_diff = calculateEMADiff(candles.opening.values, candles.closing.values);
+		}
+	});
 
 	while(false){
-		try {
-			candles = await fetchCandles();
-		} catch (e) {
-			console.error('ERROR IN updateInputEMA(): ', e);
-			process.exit(-1);
+		const candles = await fetchCandles(400);
+
+		for(let i = candles.opening.values.length - 1; i > 30; --i) {
+			try {
+				const curOpeningPrices = candles.opening.values.slice(0, i + 1);
+				const curClosingPrices = candles.closing.values.slice(0, i + 1);
+				const currEmaDifference = await calculateEMADiff(curOpeningPrices, curClosingPrices);
+
+				const prevOpeningPrices = candles.opening.values.slice(0, i);
+				const prevClosingPrices = candles.closing.values.slice(0, i);
+				const prevEmaDifference = await calculateEMADiff(prevOpeningPrices, prevClosingPrices);
+
+
+				// previously ema2 > ema1 and currently ema2 < ema1
+				if(prevEmaDifference > 0 && currEmaDifference <= 0) {					
+					console.log("PREV : ", prevEmaDifference, "CURRENT : ", currEmaDifference);
+
+					const time = new Date(candles.opening.times[i]);
+					console.log("ALIM FIRSATI : ", time.toString());
+					// %1 altına stop-loss koy
+					// %1 üstüne satış koy yarısı için
+					// %1 üstüne diğer yarısı için "trailing-stop-loss" işlemi başlat
+				}
+			} catch (e) {
+				console.error('ERROR IN calculateEMA(): ', e);
+				process.exit(-1);
+			}
 		}
-
-		try {
-			emaDifferences = await calculateEMADiff(candles.opening.values, candles.closing.values);
-		} catch (e) {
-			console.error('ERROR IN calculateEMA(): ', e);
-			process.exit(-1);
-		}
-
-		const prev = emaDifferences[emaDifferences.length - 2];
-		const curr = emaDifferences.last();
-
-		// previously ema2 > ema1 and currently ema2 < ema1
-		if(prev > 0 && curr < 0) {
-			const time = new Date(prices.opening.times.last());
-			console.log("ALIM FIRSATI : ", time.toLocaleTimeString());
-			// %1 altına stop-loss koy
-			// %1 üstüne satış koy yarısı için
-			// %1 üstüne diğer yarısı için "trailing-stop-loss" işlemi başlat
-		}
-
-		// if(smoothedEMA < BUY_LIMIT){ // Buy condition
-		// 	try {
-		// 		buySuccess = await buy();	
-		// 	} catch (e) {
-		// 		console.error('ERROR IN buy(): ', e);
-		// 		console.log('RESUMING OPERATIONS\n');
-		// 		continue;
-		// 	}
-		// 	if(buySuccess === 'failure') continue;
-		// 	try {
-		// 		await sell();		
-		// 	} catch (e) {
-		// 		console.error('ERROR IN sell(): ', e);
-		// 		process.exit(-1);
-		// 	}			
-		// }
-
-		await sync();
 	}
-})();
-
-
-if (!Array.prototype.last){
-    Array.prototype.last = function(){
-        return this[this.length - 1];
-    };
 };
 
-if (!Array.prototype.subtract){
-    Array.prototype.subtract = function(other_array){
-        const result = [];
-
-		for(let i = 0; i < this.length; ++i){
-			result[i] = this[i] - other_array[i];
-		};
-
-		return result;
-		
-    };
-};
+start(COIN_PAIR, CANDLE_INTERVAL);
