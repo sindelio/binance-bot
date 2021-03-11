@@ -18,6 +18,7 @@ const binanceTrader = new BinanceTrader().options({
 
 const COIN_PAIR = 'BANDUSDT';
 const CANDLE_INTERVAL = '15m';
+const TRADING_CURRENCY = 'USDT';
 const WAITING_TIME_MS = 1000 * 60 * 15; // 15 minutes
 
 // VARIABLES - Binance API
@@ -111,22 +112,22 @@ const calculateEMADiff = async (openingPrices, closingPrices) => {
 }
 
 // Calculates how much of the asset(coin) the program can buy.
-const calculateBuyQuantity = async () => {
-	console.log('CALCULATING BUY QUANTITY');
+const calculateBuyQuantity = async (symbol, trading_currency="USDT") => {
+	console.log('CALCULATING BUY QUANTITY...');
 
 	const accountInfo = await binanceServer.accountInfo();
 	const prices = await binanceServer.prices();
 
-	const USDTBalance = accountInfo.balances[INDEX_USDT].free;
-	const currentPrice = prices.BANDUSDT;
-
-	const buyQuantity = USDTBalance / currentPrice;
-
-	console.log('BuyQuantity: ', buyQuantity, '\n');
+	const free_balance = parseFloat(accountInfo.balances.find(b => b.asset === trading_currency).free);
+	const buying_balance = free_balance > 20 ? 20 : free_balance;
+	
+	const coin_price = parseFloat(prices[symbol]) - 0.5;
+	
+	const quantity = buying_balance / coin_price; 
 
 	return { 
-		buyQuantity,
-		currentPrice
+		expected_quantity: quantity.toFixed(2),
+		expected_price : coin_price.toFixed(6)
 	};
 }
 
@@ -312,6 +313,76 @@ const add_candle = (candles, latest_candle) => {
 	candles.closing.times.push(latest_candle.closeTime);
 }
 
+const trade = async (symbol, trading_currency="USDT") => {
+	const { expected_quantity, expected_price} = await calculateBuyQuantity(symbol, trading_currency);
+
+	// MARKET BUY
+	binanceTrader.marketBuy(symbol, expected_quantity, (error, response) => {
+		if(error) {
+			console.log("Error occured during Market Buy", error.body);
+		} else {
+			// SAMPLE RESPONSE
+			// {
+			// 	symbol: 'OCEANUSDT',
+			// 	orderId: 812125125941,
+			// 	orderListId: -1,
+			// 	clientOrderId: 'ag8ashgkashash88128IKHJS',
+			// 	transactTime: 82196816816,
+			// 	price: '0.00000000',
+			// 	origQty: '8.00000000',
+			// 	executedQty: '8.00000000',
+			// 	cummulativeQuoteQty: '10.69200000',
+			// 	status: 'FILLED',
+			// 	timeInForce: 'GTC',
+			// 	type: 'MARKET',
+			// 	side: 'BUY',
+			// 	fills: [
+			// 	  {
+			// 		price: '1.33650000',
+			// 		qty: '8.00000000',
+			// 		commission: '0.00800000',
+			// 		commissionAsset: 'OCEAN',
+			// 		tradeId: 86138128
+			// 	  }
+			// 	]
+			// }
+
+			const orderId = response.orderId;
+			const { 
+				price: buying_price,
+				qty: buying_quantity,
+			} = response?.fills[0];
+
+			const actual_buying_price = buying_price || expected_price ;
+			const actual_quantity = buying_quantity || expected_quantity ;
+
+			const stop_price = actual_buying_price * 0.99;
+
+			// PLACE STOP_LOSS order
+			binanceTrader.sell(symbol, actual_quantity, stop_price, {stopPrice: stop_price, type: "STOP_LOSS_LIMIT"}, (error, response) => {
+				if (error) {
+					console.log("Error occured during stop-loss order", error.body);
+				} else {
+					// SAMPLE RESPONSE
+					// {
+					// 	symbol: 'OCEANUSDT',
+					// 	orderId: 831212161621,
+					// 	orderListId: -1,
+					// 	clientOrderId: '43asgsf8s0IwtkQGMsgazM',
+					// 	transactTime: 16154252152270
+					// }
+		
+					const orderId = response.orderId;
+					console.log("Stop-Loss order response", response);
+				}
+			});
+
+			// PLACE SELL ORDER AT %1 PROFIT UP FOR HALF QUANTITY
+			// TRAIL STOP-LOSS FOR OTHER HALF QUANTITY
+		}
+	});
+}
+
 // Main function, entrance point for the program
 const start = async (symbol, interval) => {
 	const candles = await fetch_initial_candles(symbol, interval, 400);
@@ -335,6 +406,9 @@ const start = async (symbol, interval) => {
 
 			const time = new Date(tick.eventTime);
 			console.log("ALIM FIRSATI : ", time.toLocaleTimeString());
+			
+			// START TRADING THE COIN
+			trade(COIN_PAIR, TRADING_CURRENCY);
 		}
 
 		if(tick.isFinal) {
@@ -342,37 +416,6 @@ const start = async (symbol, interval) => {
 			prev_ema_diff = calculateEMADiff(candles.opening.values, candles.closing.values);
 		}
 	});
-
-	while(false){
-		const candles = await fetchCandles(400);
-
-		for(let i = candles.opening.values.length - 1; i > 30; --i) {
-			try {
-				const curOpeningPrices = candles.opening.values.slice(0, i + 1);
-				const curClosingPrices = candles.closing.values.slice(0, i + 1);
-				const currEmaDifference = await calculateEMADiff(curOpeningPrices, curClosingPrices);
-
-				const prevOpeningPrices = candles.opening.values.slice(0, i);
-				const prevClosingPrices = candles.closing.values.slice(0, i);
-				const prevEmaDifference = await calculateEMADiff(prevOpeningPrices, prevClosingPrices);
-
-
-				// previously ema2 > ema1 and currently ema2 < ema1
-				if(prevEmaDifference > 0 && currEmaDifference <= 0) {					
-					console.log("PREV : ", prevEmaDifference, "CURRENT : ", currEmaDifference);
-
-					const time = new Date(candles.opening.times[i]);
-					console.log("ALIM FIRSATI : ", time.toString());
-					// %1 altına stop-loss koy
-					// %1 üstüne satış koy yarısı için
-					// %1 üstüne diğer yarısı için "trailing-stop-loss" işlemi başlat
-				}
-			} catch (e) {
-				console.error('ERROR IN calculateEMA(): ', e);
-				process.exit(-1);
-			}
-		}
-	}
 };
 
-start(COIN_PAIR, CANDLE_INTERVAL);
+// start(COIN_PAIR, CANDLE_INTERVAL);
