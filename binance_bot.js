@@ -46,6 +46,8 @@ const binanceTrader = new BinanceTrader().options({
 const COIN_PAIR = 'BANDUSDT';
 const CANDLE_INTERVAL = '15m';
 const TRADING_CURRENCY = 'USDT';
+const PROFIT_MULTIPLIER = 1.01;
+const STOP_LOSS_MULTIPLIER = 0.99;
 
 // PROTOTYPE FUNCTIONS
 if (!Array.prototype.last){
@@ -81,7 +83,7 @@ const sync = async () => {
 
 // Adjust the input for the EMA calculation
 const fetch_initial_candles = async (symbol, interval) => {
-	console.log('FETCHING INITIAL CANDLES...');
+	console.log('Fetching initial candles...');
 	
 	let candles = [];
 	try {
@@ -175,13 +177,12 @@ async function spot_market_buy(symbol, trading_currency="USDT", test=true) {
 	};
 
 	if(!test) {
-		// MARKET BUY
 		binanceTrader.marketBuy(symbol, expected_quantity, async (error, response) => {
 			if(error) {
 				console.log("Error occured during Market Buy", error.body);
 				buy_info = null;
 			} else if(response) {
-				// SAMPLE RESPONSE
+				// Sample response
 				// {
 				// 	symbol: 'OCEANUSDT',
 				// 	orderId: 812125125941,
@@ -234,10 +235,15 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 	};
 
 	if(current_price >= higher_selling_price) {
+		console.log("Price exceeded the higher limit");
+
 		track_info = {
 			lower_selling_price : higher_selling_price ,
-			higher_selling_price : current_price * 1.01 ,
+			higher_selling_price : current_price * PROFIT_MULTIPLIER ,
 		};
+		
+		console.log("Increasing lower limit from", lower_selling_price, "to :", track_info.lower_selling_price);
+		console.log("Increasing higher limit from", higher_selling_price, "to :", track_info.higher_selling_price);
 	} else if(current_price <= lower_selling_price) {
 		if(test) {
 			track_info = { 
@@ -249,7 +255,7 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 				if(error) {
 					console.log("Error occured during Market Sell", error.body);
 				} else if(response) {
-					// SAMPLE RESPONSE ?
+					// Sample response ( It is not updated! Try it)
 					// {
 					// 	symbol: 'OCEANUSDT',
 					// 	orderId: 812125125941,
@@ -329,8 +335,7 @@ async function start(symbol, interval) {
 
 	binanceServer.ws.candles(symbol, interval, async (tick) => {
 		if(current_state == bot_state.SEARCHING) {
-
-			// SEARCH FOR OPPORTUNITY AT EMA LINES
+			// Search for opportunity
 			const openingPrices = candles.opening.values.concat(tick.open);
 			const closingPrices = candles.closing.values.concat(tick.close);
 			openingPrices.shift();
@@ -340,10 +345,10 @@ async function start(symbol, interval) {
 			console.log("ema1: ", curr_emas.ema1, ", ema2:", curr_emas.ema2);
 	
 			if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {
-				// MARKET BUY
 				const time = new Date(tick.eventTime);
 				console.log("Start trading for", symbol, "at", time.toLocaleTimeString());
 				
+				// Buy from market
 				if(TRADE_TYPE == trade_type.SPOT) {
 					buy_info = await spot_market_buy(COIN_PAIR, TRADING_CURRENCY, true);	
 				} else if(TRADE_TYPE == trade_type.FUTURE) {
@@ -363,31 +368,28 @@ async function start(symbol, interval) {
 			
 		} else if(buy_info && buy_info.price && buy_info.quantity && current_state == bot_state.TRADING) {
 			const current_price = tick.close;
-			console.log("Price of the :", symbol, " :", current_price);
+			console.log("Price of the", symbol, ":", current_price);
 
-			// TRACK FOR THE PRICE
+			// Track for the price
 			if(TRADE_TYPE == trade_type.SPOT) {
-				const lower_selling_price = (track_info && track_info.lower_selling_price) || (buy_info && buy_info.price * 0.99); 
-				const higher_selling_price = (track_info && track_info.higher_selling_price) || (buy_info && buy_info.price * 1.01);
+				const lower_selling_price = (track_info && track_info.lower_selling_price) || (buy_info && buy_info.price * STOP_LOSS_MULTIPLIER); 
+				const higher_selling_price = (track_info && track_info.higher_selling_price) || (buy_info && buy_info.price * PROFIT_MULTIPLIER);
 				const quantity = (buy_info && buy_info.quantity) || 0 ;
 
 				track_info = track_spot_price(COIN_PAIR, quantity, current_price, lower_selling_price, higher_selling_price, true);
 				
 				if(track_info && track_info.sell_price && track_info.sell_quantity) {
-					console.log("Sold ", symbol, ", quantity : ", info.sell_quantity, ", price : ", info.sell_price);
+					console.log("Sold", symbol, ", quantity :", track_info.sell_quantity, ", price :", track_info.sell_price);
 					
 					const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
 					console.log("Profit is :", profit);
 
 					total_profit += profit;
 					console.log("Total profit is :", total_profit);
-
-					// RESET TO SEARCHING
-					buy_info = null;
-					track_info = null;
-					current_state = bot_state.SEARCHING;
-				} else if(!track_info) {
-					// RESET TO SEARCHING
+				} 
+					
+				if(!track_info || (track_info.sell_price && track_info.sell_quantity)) {
+					// If sold or tracking is failed, reset to searching
 					buy_info = null;
 					track_info = null;
 					current_state = bot_state.SEARCHING;
