@@ -152,7 +152,7 @@ async function calculate_buy_quantity(symbol, trading_currency="USDT", test=true
 	};
 }
 
-// Add lastest candle to the list
+// Add latest candle to the list
 const add_candle = (candles, latest_candle) => {
 	candles.opening.values.shift();
 	candles.opening.times.shift();
@@ -165,104 +165,21 @@ const add_candle = (candles, latest_candle) => {
 	candles.closing.times.push(latest_candle.closeTime);
 }
 
-// Track price for spot trading
-async function track_spot_price(symbol, {stop_loss_order_id, stop_price, quantity, buying_price}, test=true){
-	const expected_profit_amount = buying_price * 0.1;
-	
-	let higher_selling_price = buying_price + expected_profit_amount;
-	let current_price = buying_price;
-	let selling_price = stop_price;
+// Spot market buy
+async function spot_market_buy(symbol, trading_currency="USDT", test=true) {
+	const { expected_quantity, expected_price } = await calculate_buy_quantity(symbol, trading_currency, test);
 
-	let sold = false;
+	let buy_info = {
+		quantity: expected_quantity,
+		price: expected_price
+	};
 
-	while(!sold) {
-		const prices = await binanceServer.prices();
-		current_price = parseFloat(prices[symbol]);
-		console.log("Price of the : ", symbol, " : ", current_price);
-		
-		if(current_price >= higher_selling_price) {
-			selling_price = higher_selling_price;
-			higher_selling_price += expected_profit;
-
-		} else if(current_price <= selling_price) {
-			selling_price = current_price;
-			
-			if(test) {
-				console.log("SOLD ", symbol, " QUANTITY : ", quantity, " PRICE : ", selling_price);
-				sold = true;
-			} else {
-				binanceTrader.marketSell(symbol, quantity, (error, response) => {
-					if(error) {
-						console.log("Error occured during Market Sell", error.body);
-					} else if(response) {	
-						// SAMPLE RESPONSE ?
-						// {
-						// 	symbol: 'OCEANUSDT',
-						// 	orderId: 812125125941,
-						// 	orderListId: -1,
-						// 	clientOrderId: 'ag8ashgkashash88128IKHJS',
-						// 	transactTime: 82196816816,
-						// 	price: '0.00000000',
-						// 	origQty: '8.00000000',
-						// 	executedQty: '8.00000000',
-						// 	cummulativeQuoteQty: '10.69200000',
-						// 	status: 'FILLED',
-						// 	timeInForce: 'GTC',
-						// 	type: 'MARKET',
-						// 	side: 'BUY',
-						// 	fills: [
-						// 	  {
-						// 		price: '1.33650000',
-						// 		qty: '8.00000000',
-						// 		commission: '0.00800000',
-						// 		commissionAsset: 'OCEAN',
-						// 		tradeId: 86138128
-						// 	  }
-						// 	]
-						// }
-
-						// const { 
-						// 	price: selling_price,
-						// 	qty: selling_quantity,
-						// } = response.fills[0];
-
-						console.log("SOLD ", symbol, " QUANTITY : ", quantity, " PRICE : ", selling_price);
-
-						sold = true;
-					}
-				});
-			}
-		}
-	}
-
-	const profit = selling_price - buying_price;
-	console.log("PROFIT is: ", profit);
-
-	return profit;
-} 
-
-// Start spot trading
-async function spot_trade(symbol, trading_currency="USDT", test=true) {
-	const { expected_quantity, expected_price} = await calculate_buy_quantity(symbol, trading_currency, test);
-	let profit = 0;
-
-	if(test) {
-		console.log("BOUGHT ", symbol, "AT PRICE : ", expected_price);
-
-		const stop_price = expected_price * 0.99;
-		const trade_info = {
-			stop_loss_order_id: 5,
-			stop_price: stop_price,
-			quantity: expected_quantity,
-			buying_price: expected_price
-		};
-
-		profit = await track_spot_price(symbol, trade_info, test);
-	} else {
+	if(!test) {
 		// MARKET BUY
 		binanceTrader.marketBuy(symbol, expected_quantity, async (error, response) => {
 			if(error) {
 				console.log("Error occured during Market Buy", error.body);
+				buy_info = null;
 			} else if(response) {
 				// SAMPLE RESPONSE
 				// {
@@ -298,38 +215,115 @@ async function spot_trade(symbol, trading_currency="USDT", test=true) {
 				const actual_buying_price = buying_price || expected_price ;
 				const actual_quantity = buying_quantity || expected_quantity ;
 
-				const stop_price = actual_buying_price * 0.99;
-				const trade_info = {
-					stop_loss_order_id: 5,
-					stop_price: stop_price,
+				buy_info = {
 					quantity: actual_quantity,
-					buying_price: actual_buying_price
+					price: actual_buying_price
 				};
-
-				profit = await track_spot_price(symbol, trade_info, test);
 			}
 		});
 	}
 
-	return profit;
+	console.log("BOUGHT ", symbol, "AT PRICE : ", buy_info.price);
+
+	return buy_info;
 }
 
-// Start future trading
-const future_trade = async (symbol, trading_currency="USDT") => {
-	if(SESSION_TYPE == session_type.TEST) {
+// Track price for spot trading
+function track_spot_price(symbol, quantity, current_price, lower_selling_price, higher_selling_price, test=true){
+	console.log("Price of the : ", symbol, " : ", current_price);
+	
+	let track_info = null;
+
+	if(current_price >= higher_selling_price) {
+		track_info = {
+			lower_selling_price : higher_selling_price ,
+			higher_selling_price : current_price * 1.01 ,
+		};
+	} else if(current_price <= lower_selling_price) {	
+		if(test) {
+			track_info = { 
+				sell_price : current_price,
+				sell_quantity : quantity 
+			};
+		} else {
+			binanceTrader.marketSell(symbol, quantity, (error, response) => {
+				if(error) {
+					track_info = null;
+					console.log("Error occured during Market Sell", error.body);
+				} else if(response) {
+					// SAMPLE RESPONSE ?
+					// {
+					// 	symbol: 'OCEANUSDT',
+					// 	orderId: 812125125941,
+					// 	orderListId: -1,
+					// 	clientOrderId: 'ag8ashgkashash88128IKHJS',
+					// 	transactTime: 82196816816,
+					// 	price: '0.00000000',
+					// 	origQty: '8.00000000',
+					// 	executedQty: '8.00000000',
+					// 	cummulativeQuoteQty: '10.69200000',
+					// 	status: 'FILLED',
+					// 	timeInForce: 'GTC',
+					// 	type: 'MARKET',
+					// 	side: 'BUY',
+					// 	fills: [
+					// 	  {
+					// 		price: '1.33650000',
+					// 		qty: '8.00000000',
+					// 		commission: '0.00800000',
+					// 		commissionAsset: 'OCEAN',
+					// 		tradeId: 86138128
+					// 	  }
+					// 	]
+					// }
+
+					// const { 
+					// 	price: selling_price,
+					// 	qty: selling_quantity,
+					// } = response.fills[0];
+
+					track_info = { 
+						sell_price : current_price,
+						sell_quantity : quantity 
+					};
+				}
+			});
+		}
+	}
+
+	return track_info;
+} 
+
+// Future market buy
+async function future_market_buy(symbol, trading_currency="USDT", test=true) {
+	if(test) {
 		console.log("Future testing is not implemented");
 	} else {
 		console.log("Future trading is not implemented!");
 	}
-	
+}
+
+// Track price for future trading
+function track_future_price(symbol, quantity, current_price, lower_selling_price, higher_selling_price, test=true) {
+	if(test) {
+		console.log("Future testing is not implemented");
+	} else {
+		console.log("Future trading is not implemented!");
+	}
 }
 
 // Main function, entrance point for the program
 async function start(symbol, interval) {
 	const candles = await fetch_initial_candles(symbol, interval);
-	let current_state = bot_state.SEARCHING;
 
+	let current_state = bot_state.SEARCHING;
 	let total_profit = 0;
+
+	// trading variables
+	let buy_info = null;
+	let track_info = null;
+	
+	// searching variables
 	let prev_emas = {ema1: 0, ema2: 0};
 	let curr_emas = {ema1: 0, ema2: 0};
 	
@@ -337,6 +331,8 @@ async function start(symbol, interval) {
 
 	binanceServer.ws.candles(symbol, interval, async (tick) => {
 		if(current_state == bot_state.SEARCHING) {
+
+			// SEARCH FOR OPPORTUNITY AT EMA LINES
 			const openingPrices = candles.opening.values.concat(tick.open);
 			const closingPrices = candles.closing.values.concat(tick.close);
 			openingPrices.shift();
@@ -346,29 +342,57 @@ async function start(symbol, interval) {
 			console.log("CURRENT EMA1: ", curr_emas.ema1, "EMA2:", curr_emas.ema2);
 	
 			if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {
-				// START TRADING
-				current_state = bot_state.TRADING;
-
+				// MARKET BUY
 				const time = new Date(tick.eventTime);
 				console.log("START TRADING FOR", symbol, "AT", time.toLocaleTimeString());
 				
-				let trade_profit = 0;
 				if(TRADE_TYPE == trade_type.SPOT) {
-					trade_profit = await spot_trade(COIN_PAIR, TRADING_CURRENCY, true);			
+					buy_info = await spot_market_buy(COIN_PAIR, TRADING_CURRENCY, true);			
 				} else if(TRADE_TYPE == trade_type.FUTURE) {
-					trade_profit = await future_trade(COIN_PAIR, TRADING_CURRENCY, true);
+					buy_info = await future_market_buy(COIN_PAIR, TRADING_CURRENCY, true);
 				}
-				console.log("PROFIT FROM THE TRADE IS :", trade_profit);
-	
-				total_profit += trade_profit;
-				console.log("TOTAL PROFIT IS :", total_profit);
 
-				current_state = bot_state.SEARCHING; 
+				current_state = (buy_info != null) ? bot_state.TRADING : bot_state.SEARCHING;
 			}
 	
 			if(tick.isFinal) {
 				add_candle(candles, tick);
 				prev_emas = curr_emas;
+			}
+			
+		} else if(buy_info && buy_info.price && buy_info.quantity && current_state == bot_state.TRADING) {
+			const current_price = tick.close;
+			
+			// TRACK FOR THE PRICE
+			if(TRADE_TYPE == trade_type.SPOT) {
+				const lower_selling_price = (track_info && track_info.lower_selling_price) || (buy_info && buy_info.price * 0.99); 
+				const higher_selling_price = (track_info && track_info.higher_selling_price) || (buy_info && buy_info.price * 1.01);
+				const quantity = (buy_info && buy_info.quantity) || 0 ;
+
+				track_info = track_spot_price(COIN_PAIR, quantity, current_price, lower_selling_price, higher_selling_price, true);
+				
+				if(track_info && track_info.sell_price && track_info.sell_quantity) {
+					console.log("SOLD ", symbol, " QUANTITY : ", info.sell_quantity, " PRICE : ", info.sell_price);
+					
+					const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
+					console.log("PROFIT IS :", profit);
+
+					total_profit += profit;
+					console.log("TOTAL PROFIT IS :", total_profit);
+
+					// RESET TO SEARCHING
+					buy_info = null;
+					track_info = null;
+					current_state = bot_state.SEARCHING;
+				} else if(!track_info) {
+					// RESET TO SEARCHING
+					buy_info = null;
+					track_info = null;
+					current_state = bot_state.SEARCHING;
+				}
+				
+			} else if(TRADE_TYPE == trade_type.FUTURE) {
+				track_future_price(COIN_PAIR, buy_info.quantity, current_price, lower_selling_price, higher_selling_price, true);
 			}
 		}
 	});
