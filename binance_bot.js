@@ -3,6 +3,11 @@ const BinanceTrader = require('node-binance-api');
 
 const { EMA } = require('technicalindicators');
 
+const bot_state = {
+	SEARCHING : "searching",
+	TRADING : "trading"
+}
+
 const trade_type = {
 	SPOT: "spot",
 	FUTURE: "future",
@@ -126,7 +131,7 @@ const calculateEMAs = (openingPrices, closingPrices) => {
 }
 
 // Calculates how much of the asset(coin) the program can buy.
-const calculateBuyQuantity = async (symbol, trading_currency="USDT", test=true) => {
+async function calculate_buy_quantity(symbol, trading_currency="USDT", test=true) {
 	console.log('CALCULATING BUY QUANTITY...');
 
 	let buying_balance = 20;
@@ -161,7 +166,7 @@ const add_candle = (candles, latest_candle) => {
 }
 
 // Track price for spot trading
-const track_spot_price = async (symbol, {stop_loss_order_id, stop_price, quantity, buying_price}, test=true) => {
+async function track_spot_price(symbol, {stop_loss_order_id, stop_price, quantity, buying_price}, test=true){
 	const expected_profit_amount = buying_price * 0.1;
 	
 	let higher_selling_price = buying_price + expected_profit_amount;
@@ -237,8 +242,8 @@ const track_spot_price = async (symbol, {stop_loss_order_id, stop_price, quantit
 } 
 
 // Start spot trading
-const spot_trade = async (symbol, trading_currency="USDT", test=true) => {
-	const { expected_quantity, expected_price} = await calculateBuyQuantity(symbol, trading_currency, test);
+async function spot_trade(symbol, trading_currency="USDT", test=true) {
+	const { expected_quantity, expected_price} = await calculate_buy_quantity(symbol, trading_currency, test);
 	let profit = 0;
 
 	if(test) {
@@ -252,10 +257,10 @@ const spot_trade = async (symbol, trading_currency="USDT", test=true) => {
 			buying_price: expected_price
 		};
 
-		profit = track_spot_price(symbol, trade_info, test);
+		profit = await track_spot_price(symbol, trade_info, test);
 	} else {
 		// MARKET BUY
-		binanceTrader.marketBuy(symbol, expected_quantity, (error, response) => {
+		binanceTrader.marketBuy(symbol, expected_quantity, async (error, response) => {
 			if(error) {
 				console.log("Error occured during Market Buy", error.body);
 			} else if(response) {
@@ -301,7 +306,7 @@ const spot_trade = async (symbol, trading_currency="USDT", test=true) => {
 					buying_price: actual_buying_price
 				};
 
-				profit = track_spot_price(symbol, trade_info, test);
+				profit = await track_spot_price(symbol, trade_info, test);
 			}
 		});
 	}
@@ -320,8 +325,9 @@ const future_trade = async (symbol, trading_currency="USDT") => {
 }
 
 // Main function, entrance point for the program
-const start = async (symbol, interval) => {
+async function start(symbol, interval) {
 	const candles = await fetch_initial_candles(symbol, interval);
+	let current_state = bot_state.SEARCHING;
 
 	let total_profit = 0;
 	let prev_emas = {ema1: 0, ema2: 0};
@@ -329,42 +335,41 @@ const start = async (symbol, interval) => {
 	
 	prev_emas = calculateEMAs(candles.opening.values, candles.closing.values);
 
-	let trade_profit = 0;
-	if(TRADE_TYPE == trade_type.SPOT) {
-		trade_profit = await spot_trade(COIN_PAIR, TRADING_CURRENCY, true);			
-	} else if(TRADE_TYPE == trade_type.FUTURE) {
-		trade_profit = await future_trade(COIN_PAIR, TRADING_CURRENCY, true);
-	}
+	binanceServer.ws.candles(symbol, interval, async (tick) => {
+		if(current_state == bot_state.SEARCHING) {
+			const openingPrices = candles.opening.values.concat(tick.open);
+			const closingPrices = candles.closing.values.concat(tick.close);
+			openingPrices.shift();
+			closingPrices.shift();
+	
+			curr_emas = calculateEMAs(openingPrices, closingPrices);
+			console.log("CURRENT EMA1: ", curr_emas.ema1, "EMA2:", curr_emas.ema2);
+	
+			if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {
+				// START TRADING
+				current_state = bot_state.TRADING;
 
-	binanceServer.ws.candles(symbol, interval, tick => {
-		const openingPrices = candles.opening.values.concat(tick.open);
-		const closingPrices = candles.closing.values.concat(tick.close);
-		openingPrices.shift();
-		closingPrices.shift();
+				const time = new Date(tick.eventTime);
+				console.log("START TRADING FOR", symbol, "AT", time.toLocaleTimeString());
+				
+				let trade_profit = 0;
+				if(TRADE_TYPE == trade_type.SPOT) {
+					trade_profit = await spot_trade(COIN_PAIR, TRADING_CURRENCY, true);			
+				} else if(TRADE_TYPE == trade_type.FUTURE) {
+					trade_profit = await future_trade(COIN_PAIR, TRADING_CURRENCY, true);
+				}
+				console.log("PROFIT FROM THE TRADE IS :", trade_profit);
+	
+				total_profit += trade_profit;
+				console.log("TOTAL PROFIT IS :", total_profit);
 
-		curr_emas = calculateEMAs(openingPrices, closingPrices);
-		console.log("CURRENT EMA1 : ", curr_emas.ema1, "EMA2", curr_emas.ema2);
-
-		if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {
-			const time = new Date(tick.eventTime);
-			console.log("START TRADING FOR ", symbol, " AT ", time.toLocaleTimeString());
-			
-			// START TRADING
-			let trade_profit = 0;
-			if(TRADE_TYPE == trade_type.SPOT) {
-				trade_profit = await spot_trade(COIN_PAIR, TRADING_CURRENCY, true);			
-			} else if(TRADE_TYPE == trade_type.FUTURE) {
-				trade_profit = await future_trade(COIN_PAIR, TRADING_CURRENCY, true);
+				current_state = bot_state.SEARCHING; 
 			}
-			console.log("PROFIT FROM THE TRADE IS : ", trade_profit);
-
-			total_profit += trade_profit;
-			console.log("TOTAL PROFIT IS : ", total_profit);
-		}
-
-		if(tick.isFinal) {
-			add_candle(candles, tick);
-			prev_emas = curr_emas;
+	
+			if(tick.isFinal) {
+				add_candle(candles, tick);
+				prev_emas = curr_emas;
+			}
 		}
 	});
 };
