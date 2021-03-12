@@ -342,7 +342,7 @@ async function start(symbol, interval) {
 			closingPrices.shift();
 	
 			curr_emas = calculateEMAs(openingPrices, closingPrices);
-			console.log("ema1: ", curr_emas.ema1, ", ema2:", curr_emas.ema2);
+			// console.log("ema1: ", curr_emas.ema1, ", ema2:", curr_emas.ema2);
 	
 			if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {
 				const time = new Date(tick.eventTime);
