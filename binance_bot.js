@@ -43,7 +43,7 @@ const binanceTrader = new BinanceTrader().options({
 	apiKey: BINANCE_API_KEY.api_secret
 });
 
-const COIN_PAIR = 'BANDUSDT';
+const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
 const CANDLE_INTERVAL = '15m';
 const TRADING_CURRENCY = 'USDT';
 const PROFIT_MULTIPLIER = 1.01;
@@ -82,9 +82,7 @@ const sync = async () => {
 }
 
 // Adjust the input for the EMA calculation
-const fetch_initial_candles = async (symbol, interval) => {
-	console.log('Fetching initial candles...');
-	
+const fetch_initial_candles = async (symbol, interval) => {	
 	let candles = [];
 	try {
 		candles = await binanceServer.candles({
@@ -318,6 +316,7 @@ function track_future_price(symbol, quantity, current_price, lower_selling_price
 
 // Main function, entrance point for the program
 async function start(symbol, interval) {
+	console.log("Fetching initial candles for", symbol);
 	const candles = await fetch_initial_candles(symbol, interval);
 
 	let current_state = bot_state.SEARCHING;
