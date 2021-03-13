@@ -99,11 +99,7 @@ async function fetch_exchange_info() {
 							filters.maxQty = filter.maxQty
 						}
 					}
-
-					if(obj.symbol == "BANDUSDT") {
-						console.log(obj);
-					}
-
+					
 					filters.orderTypes = obj.orderTypes;
 					filters.icebergAllowed = obj.icebergAllowed;
 					minimums[obj.symbol] = filters;
