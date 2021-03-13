@@ -44,7 +44,7 @@ const binanceTrader = new BinanceTrader().options({
 });
 
 const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
-const CANDLE_INTERVAL = '15m';
+const CANDLE_INTERVAL = process.argv[3]?.toString() || "15m";
 const TRADING_CURRENCY = 'USDT';
 const PROFIT_MULTIPLIER = 1.01;
 const STOP_LOSS_MULTIPLIER = 0.99;
