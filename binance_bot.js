@@ -74,11 +74,45 @@ if (!Array.prototype.subtract){
 // Pauses execution for a specified amount of time
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// Synchronizes with the Binance API server
-const sync = async () => {
-	console.log('WAITING FOR', CANDLE_INTERVAL, '...');
-	await wait(WAITING_TIME_MS); // Waits 1s more to make sure the prices were updated
-	console.log('WAITING IS FINISHED !');
+async function fetch_exchange_info() {
+    return new Promise((resolve, reject) => {
+        binanceTrader.exchangeInfo((error, response) => {
+            if (error) {
+                console.log(error);
+                return reject(error);
+            } else {
+				let minimums = {};
+
+				for (let obj of response.symbols) {
+					let filters = { status: obj.status }
+					for (let filter of obj.filters) {
+						if (filter.filterType == "MIN_NOTIONAL") {
+							filters.minNotional = filter.minNotional
+						} else if (filter.filterType == "PRICE_FILTER") {
+							filters.minPrice = filter.minPrice
+							filters.maxPrice = filter.maxPrice
+							filters.tickSize = filter.tickSize
+						} else if (filter.filterType == "LOT_SIZE") {
+							filters.stepSize = filter.stepSize
+							filters.minQty = filter.minQty
+							filters.maxQty = filter.maxQty
+						}
+					}
+
+					if(obj.symbol == "BANDUSDT") {
+						console.log(obj);
+					}
+
+					filters.orderTypes = obj.orderTypes;
+					filters.icebergAllowed = obj.icebergAllowed;
+					minimums[obj.symbol] = filters;
+				}
+		
+				return resolve(minimums);
+			}
+            
+        })
+    })
 }
 
 // Adjust the input for the EMA calculation
@@ -153,7 +187,7 @@ async function calculate_buy_quantity(symbol, trading_currency="USDT", test=true
 }
 
 // Add latest candle to the list
-const add_candle = (candles, latest_candle) => {
+function add_candle(candles, latest_candle) {
 	candles.opening.values.shift();
 	candles.opening.times.shift();
 	candles.closing.values.shift();
@@ -296,26 +330,8 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 	return track_info;
 } 
 
-// Future market buy
-async function future_market_buy(symbol, trading_currency="USDT", test=true) {
-	if(test) {
-		console.log("Future testing is not implemented");
-	} else {
-		console.log("Future trading is not implemented!");
-	}
-}
-
-// Track price for future trading
-function track_future_price(symbol, quantity, current_price, lower_selling_price, higher_selling_price, test=true) {
-	if(test) {
-		console.log("Future testing is not implemented");
-	} else {
-		console.log("Future trading is not implemented!");
-	}
-}
-
-// Main function, entrance point for the program
-async function start(symbol, interval) {
+// Start spot trading
+async function start_spot_trade(symbol, interval, minimums={}) {
 	console.log("Fetching initial candles for symbol", symbol, "and interval", interval);
 	const candles = await fetch_initial_candles(symbol, interval);
 
@@ -365,32 +381,27 @@ async function start(symbol, interval) {
 			console.log("Price of the", symbol, ":", current_price);
 
 			// Track for the price
-			if(TRADE_TYPE == trade_type.SPOT) {
-				const lower_selling_price = (track_info && track_info.lower_selling_price) || (buy_info && buy_info.price * STOP_LOSS_MULTIPLIER); 
-				const higher_selling_price = (track_info && track_info.higher_selling_price) || (buy_info && buy_info.price * PROFIT_MULTIPLIER);
-				const quantity = (buy_info && buy_info.quantity) || 0 ;
+			const lower_selling_price = (track_info && track_info.lower_selling_price) || (buy_info && buy_info.price * STOP_LOSS_MULTIPLIER); 
+			const higher_selling_price = (track_info && track_info.higher_selling_price) || (buy_info && buy_info.price * PROFIT_MULTIPLIER);
+			const quantity = (buy_info && buy_info.quantity) || 0 ;
 
-				track_info = track_spot_price(COIN_PAIR, quantity, current_price, lower_selling_price, higher_selling_price, true);
+			track_info = track_spot_price(COIN_PAIR, quantity, current_price, lower_selling_price, higher_selling_price, true);
+			
+			if(track_info && track_info.sell_price && track_info.sell_quantity) {
+				console.log("Sold", symbol, ", quantity :", track_info.sell_quantity, ", price :", track_info.sell_price);
 				
-				if(track_info && track_info.sell_price && track_info.sell_quantity) {
-					console.log("Sold", symbol, ", quantity :", track_info.sell_quantity, ", price :", track_info.sell_price);
-					
-					const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
-					console.log("Profit is :", profit);
+				const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
+				console.log("Profit is :", profit);
 
-					total_profit += profit;
-					console.log("Total profit is :", total_profit);
-				} 
-					
-				if(!track_info || (track_info.sell_price && track_info.sell_quantity)) {
-					// If sold or tracking is failed, reset to searching state
-					buy_info = null;
-					track_info = null;
-					current_state = bot_state.SEARCHING;
-				}
+				total_profit += profit;
+				console.log("Total profit is :", total_profit);
+			} 
 				
-			} else if(TRADE_TYPE == trade_type.FUTURE) {
-				track_future_price(COIN_PAIR, buy_info.quantity, current_price, lower_selling_price, higher_selling_price, true);
+			if(!track_info || (track_info.sell_price && track_info.sell_quantity)) {
+				// If sold or tracking is failed, reset to searching state
+				buy_info = null;
+				track_info = null;
+				current_state = bot_state.SEARCHING;
 			}
 		}
 
@@ -403,4 +414,23 @@ async function start(symbol, interval) {
 	});
 };
 
-start(COIN_PAIR, CANDLE_INTERVAL);
+// Start future trading
+async function start_future_trade(symbol, interval, minimums={}) {
+	if(test) {
+		console.log("Future testing is not implemented");
+	} else {
+		console.log("Future trading is not implemented!");
+	}
+};
+
+async function main() {
+	const minimums = await fetch_exchange_info();
+
+	if(TRADE_TYPE == trade_type.SPOT) {
+		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums);
+	} else if(TRADE_TYPE == trade_type.FUTURE) {
+		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, minimums);
+	}	
+}
+
+main();
