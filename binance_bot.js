@@ -334,8 +334,8 @@ async function start(symbol, interval) {
 
 	binanceServer.ws.candles(symbol, interval, async (tick) => {
 		
-		if(current_state == bot_state.SEARCHING) {
-			// Search for opportunity
+		if(current_state == bot_state.SEARCHING && tick.isFinal) {
+			// Search for opportunity when candle is finished
 			const openingPrices = candles.opening.values.concat(tick.open);
 			const closingPrices = candles.closing.values.concat(tick.close);
 			openingPrices.shift();
