@@ -35,12 +35,12 @@ if(SESSION_TYPE == session_type.TRADE) {
 
 const binanceServer = BinanceServer({ 
 	apiKey: BINANCE_API_KEY.api_key,
-	APISECRET: BINANCE_API_KEY.api_secret,
+	apiSecret: BINANCE_API_KEY.api_secret,
 });
 
 const binanceTrader = new BinanceTrader().options({
 	APIKEY: BINANCE_API_KEY.api_key,
-	apiKey: BINANCE_API_KEY.api_secret
+	APISECRET: BINANCE_API_KEY.api_secret
 });
 
 const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
