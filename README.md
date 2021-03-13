@@ -34,12 +34,12 @@ The bot depends on the following Node modules:
 Clone the repository with HTTPS:
 
 ```
-$ git clone https://github.com/sindelio/binance_bot.git
+$ git clone https://github.com/ilker1996/binance_bot.git
 ```
 
 Or with SSH:
 
-`$ git clone git@github.com:sindelio/binance_bot.git`
+`$ git clone git@github.com:ilker1996/binance_bot.git`
 
 Then move into the cloned directory:
 
@@ -53,7 +53,7 @@ $ npm i
 
 # Running
 
-Inside the project root directory (/bot_binance):
+Inside the project root directory (/binance_bot):
 
 ```
 $ node bot_public.js <coin-pair> <candle-interval>
@@ -64,7 +64,7 @@ or
 Running for list of coin pairs :
 
 ```
-$ ./trade.sh
+$ ./trade.sh <output-directory>
 ```
 
 # Contributions
