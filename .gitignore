@@ -4,5 +4,5 @@ binance_secrets.json
 # Ignore Node JS modules files
 node_modules
 
-# Ignore my private bot
-bot.js
+# Ignore output files
+*.txt
