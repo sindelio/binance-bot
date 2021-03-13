@@ -21,5 +21,5 @@ mkdir -p ${output_directory}
 for coin in ${coin_list[@]};
 do
     pair=${coin}${currency}
-	ttab node binance_bot.js ${pair} > ${output_directory}/${pair}.txt
+	ttab "node binance_bot.js ${pair} > ${output_directory}/${pair}.txt"
 done
