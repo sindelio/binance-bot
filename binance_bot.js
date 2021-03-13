@@ -316,6 +316,7 @@ function track_future_price(symbol, quantity, current_price, lower_selling_price
 
 // Main function, entrance point for the program
 async function start(symbol, interval) {
+	console.log("Fetching initial candles for symbol:", symbol, "and interval:", interval);
 	const candles = await fetch_initial_candles(symbol, interval);
 
 	let current_state = bot_state.SEARCHING;
@@ -332,7 +333,7 @@ async function start(symbol, interval) {
 	prev_emas = calculateEMAs(candles.opening.values, candles.closing.values);
 
 	binanceServer.ws.candles(symbol, interval, async (tick) => {
-		console.log("Last value is :",candles.closing.values.last());
+		
 		if(current_state == bot_state.SEARCHING) {
 			// Search for opportunity
 			const openingPrices = candles.opening.values.concat(tick.open);
