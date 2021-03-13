@@ -74,6 +74,7 @@ if (!Array.prototype.subtract){
 // Pauses execution for a specified amount of time
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+// This code block is written based on https://github.com/jsappme/node-binance-trader/blob/master/src/trader.js
 async function fetch_exchange_info() {
     return new Promise((resolve, reject) => {
         binanceTrader.exchangeInfo((error, response) => {
