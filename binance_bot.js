@@ -236,7 +236,7 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 		console.log("Price exceeded the higher limit");
 
 		track_info = {
-			lower_selling_price : higher_selling_price ,
+			lower_selling_price : higher_selling_price * STOP_LOSS_MULTIPLIER,
 			higher_selling_price : current_price * PROFIT_MULTIPLIER ,
 		};
 		
