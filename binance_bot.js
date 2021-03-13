@@ -218,10 +218,10 @@ async function spot_market_buy(symbol, trading_currency="USDT", test=true) {
 				// Sample response
 				// {
 				// 	symbol: 'OCEANUSDT',
-				// 	orderId: 812125125941,
+				// 	orderId: 1,
 				// 	orderListId: -1,
-				// 	clientOrderId: 'ag8ashgkashash88128IKHJS',
-				// 	transactTime: 82196816816,
+				// 	clientOrderId: 'asg7asg9ag9',
+				// 	transactTime: 1,
 				// 	price: '0.00000000',
 				// 	origQty: '8.00000000',
 				// 	executedQty: '8.00000000',
@@ -236,7 +236,7 @@ async function spot_market_buy(symbol, trading_currency="USDT", test=true) {
 				// 		qty: '8.00000000',
 				// 		commission: '0.00800000',
 				// 		commissionAsset: 'OCEAN',
-				// 		tradeId: 86138128
+				// 		tradeId: 1
 				// 	  }
 				// 	]
 				// }
@@ -291,10 +291,10 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 					// Sample response ( It is not updated! Try it)
 					// {
 					// 	symbol: 'OCEANUSDT',
-					// 	orderId: 812125125941,
+					// 	orderId: 1,
 					// 	orderListId: -1,
-					// 	clientOrderId: 'ag8ashgkashash88128IKHJS',
-					// 	transactTime: 82196816816,
+					// 	clientOrderId: 'as521agags',
+					// 	transactTime: 1,
 					// 	price: '0.00000000',
 					// 	origQty: '8.00000000',
 					// 	executedQty: '8.00000000',
@@ -309,7 +309,7 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 					// 		qty: '8.00000000',
 					// 		commission: '0.00800000',
 					// 		commissionAsset: 'OCEAN',
-					// 		tradeId: 86138128
+					// 		tradeId: 1
 					// 	  }
 					// 	]
 					// }
