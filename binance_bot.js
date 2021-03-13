@@ -132,7 +132,7 @@ const calculateEMAs = (openingPrices, closingPrices) => {
 
 // Calculates how much of the asset(coin) the program can buy.
 async function calculate_buy_quantity(symbol, trading_currency="USDT", test=true) {
-	console.log('CALCULATING BUY QUANTITY...');
+	console.log("Calculating buying quantity for", symbol);
 
 	let buying_balance = 20;
 	if(!test) {
