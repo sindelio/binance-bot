@@ -77,7 +77,7 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 // Synchronizes with the Binance API server
 const sync = async () => {
 	console.log('WAITING FOR', CANDLE_INTERVAL, '...');
-	await wait(WAITING_TIME_MS); // Waits 1s more to make sure the prices were updated
+	await wait(WAITING_TIME_MS);
 	console.log('WAITING IS FINISHED !');
 }
 
@@ -342,9 +342,11 @@ async function start(symbol, interval) {
 			closingPrices.shift();
 	
 			curr_emas = calculateEMAs(openingPrices, closingPrices);
-			// console.log("ema1: ", curr_emas.ema1, ", ema2:", curr_emas.ema2);
-	
-			if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {
+
+			if(prev_emas.ema2 > prev_emas.ema1 && curr_emas.ema2 <= curr_emas.ema1) {		
+				console.log("current ema1: ", curr_emas.ema1, ", current ema2:", curr_emas.ema2);
+				console.log("previous ema1: ", prev_emas.ema1, ", previous ema2:", prev_emas.ema2);
+
 				const time = new Date(tick.eventTime);
 				console.log("Start trading for", symbol, "at", time.toLocaleTimeString());
 				
@@ -359,7 +361,7 @@ async function start(symbol, interval) {
 					current_state = bot_state.TRADING;
 					console.log("Bought", symbol, "at price:", buy_info.price);	
 				}
-			}		
+			}
 		} else if(buy_info && buy_info.price && buy_info.quantity && current_state == bot_state.TRADING) {
 			const current_price = tick.close;
 			console.log("Price of the", symbol, ":", current_price);
