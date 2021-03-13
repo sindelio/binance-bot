@@ -14,6 +14,7 @@ The bot relies only in scalping indicator, so it's quite simple.
 Here are some points that deserve attention:
 
 - More consideration with the proft and stop-loss price calculations (multipliers and higher limit increase ratio)
+- Try to use only one binance node library
 
 # Dependencies
 
