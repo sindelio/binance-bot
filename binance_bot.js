@@ -316,7 +316,6 @@ function track_future_price(symbol, quantity, current_price, lower_selling_price
 
 // Main function, entrance point for the program
 async function start(symbol, interval) {
-	console.log("Fetching initial candles for", symbol);
 	const candles = await fetch_initial_candles(symbol, interval);
 
 	let current_state = bot_state.SEARCHING;
@@ -333,6 +332,7 @@ async function start(symbol, interval) {
 	prev_emas = calculateEMAs(candles.opening.values, candles.closing.values);
 
 	binanceServer.ws.candles(symbol, interval, async (tick) => {
+		console.log("Last value is :",candles.closing.values.last());
 		if(current_state == bot_state.SEARCHING) {
 			// Search for opportunity
 			const openingPrices = candles.opening.values.concat(tick.open);
@@ -358,13 +358,7 @@ async function start(symbol, interval) {
 					current_state = bot_state.TRADING;
 					console.log("Bought", symbol, "at price:", buy_info.price);	
 				}
-			}
-	
-			if(tick.isFinal) {
-				add_candle(candles, tick);
-				prev_emas = curr_emas;
-			}
-			
+			}		
 		} else if(buy_info && buy_info.price && buy_info.quantity && current_state == bot_state.TRADING) {
 			const current_price = tick.close;
 			console.log("Price of the", symbol, ":", current_price);
@@ -388,7 +382,7 @@ async function start(symbol, interval) {
 				} 
 					
 				if(!track_info || (track_info.sell_price && track_info.sell_quantity)) {
-					// If sold or tracking is failed, reset to searching
+					// If sold or tracking is failed, reset to searching state
 					buy_info = null;
 					track_info = null;
 					current_state = bot_state.SEARCHING;
@@ -398,6 +392,13 @@ async function start(symbol, interval) {
 				track_future_price(COIN_PAIR, buy_info.quantity, current_price, lower_selling_price, higher_selling_price, true);
 			}
 		}
+
+		if(tick.isFinal) {
+			// If tick is final, add it to the candles list
+			add_candle(candles, tick);
+			prev_emas = curr_emas;
+		}
+
 	});
 };
 
