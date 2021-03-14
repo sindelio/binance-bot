@@ -102,6 +102,10 @@ exports.fetch_candles = async (symbol, interval) => {
 	return new_candles;
 }
 
+exports.ws_candles = (symbol, interval, onUpdate) => {
+	binanceServer.ws.candles(symbol, interval, onUpdate);
+}
+
 // Calculates how much of the asset(coin) the user's balance can buy within the balance limit.
 exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, test=true) => {
 	let buying_balance = balance_limit;
@@ -112,13 +116,13 @@ exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance
 	}
 	
 	const prices = await binanceServer.prices();
-	const coin_price = parseFloat(prices[symbol]);ß
+	const coin_price = parseFloat(prices[symbol]);
 	
 	const quantity = buying_balance / coin_price; 
 
 	return {
-		price : coin_price.toFixed(6),
-		quantity : quantity.toFixed(2),
+		calculated_price : coin_price,
+		calculated_quantity : quantity,
 	};
 }
 
@@ -127,7 +131,7 @@ exports.spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onErro
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binanceTrader.marketBuy(symbol, expected_quantity, (error, response) => {
+		binanceTrader.marketBuy(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {
@@ -165,3 +169,49 @@ exports.spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onErro
 		});
 	}
 }
+
+// Spot market sell
+exports.spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onError) => {
+	if(test) {
+		onSuccess(price, quantity);
+	} else {
+		binanceTrader.marketSell(symbol, quantity, (error, response) => {
+			if(error) {
+				onError(error);
+			} else if(response) {
+				// Sample response ( It is not updated! Try it)
+				// {
+				// 	symbol: 'OCEANUSDT',
+				// 	orderId: 1,
+				// 	orderListId: -1,
+				// 	clientOrderId: 'as521agags',
+				// 	transactTime: 1,
+				// 	price: '0.00000000',
+				// 	origQty: '8.00000000',
+				// 	executedQty: '8.00000000',
+				// 	cummulativeQuoteQty: '10.69200000',
+				// 	status: 'FILLED',
+				// 	timeInForce: 'GTC',
+				// 	type: 'MARKET',
+				// 	side: 'BUY',
+				// 	fills: [
+				// 	  {
+				// 		price: '1.33650000',
+				// 		qty: '8.00000000',
+				// 		commission: '0.00800000',
+				// 		commissionAsset: 'OCEAN',
+				// 		tradeId: 1
+				// 	  }
+				// 	]
+				// }
+
+				// const { 
+				// 	price: selling_price,
+				// 	qty: selling_quantity,
+				// } = response.fills[0];
+
+				onSuccess(price, quantity);
+			}
+		});
+	}
+} 

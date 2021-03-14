@@ -1,17 +1,14 @@
-# Trading currency
-currency=USDT
-
-# Coins to be traded
+# Pairs to be traded
 # Place or remove coin between parantheses
 coin_list=(\
-BAND \
-HOT \
-LTC \
-LUNA \
-MATIC \
-YFII \
-REEF \
-COCOS \
+BANDUSDT \
+HOTUSDT \
+LTCUSDT \
+LUNAUSDT \
+MATICUSDT \
+YFIIUSDT \
+REEFUSDT \
+COCOSUSDT \
 )
 
 # The .txt files' directory for test results
