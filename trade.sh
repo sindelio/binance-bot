@@ -15,11 +15,11 @@ COCOS \
 )
 
 # The .txt files' directory for test results
-output_directory=./${1}
+output_directory=./outputs/${1}
 mkdir -p ${output_directory}
 
 for coin in ${coin_list[@]};
 do
     pair=${coin}${currency}
-	ttab "node binance_bot.js ${pair} > ${output_directory}/${pair}.txt"
+	ttab "node bot.js ${pair} > ${output_directory}/${pair}.txt"
 done
