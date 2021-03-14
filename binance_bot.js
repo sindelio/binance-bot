@@ -264,15 +264,15 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 	};
 
 	if(current_price >= higher_selling_price) {
-		console.log("Price exceeded the higher limit");
+		console.log("Price exceeded the higher limit\n");
 
 		track_info = {
 			lower_selling_price : current_price * STOP_LOSS_MULTIPLIER ,
 			higher_selling_price : current_price * PROFIT_MULTIPLIER ,
 		};
 		
-		console.log("Increasing lower limit from", lower_selling_price, "to :", track_info.lower_selling_price);
-		console.log("Increasing higher limit from", higher_selling_price, "to :", track_info.higher_selling_price);
+		console.log("Increasing lower limit from", lower_selling_price, "to :", track_info.lower_selling_price, "\n");
+		console.log("Increasing higher limit from", higher_selling_price, "to :", track_info.higher_selling_price, "\n");
 	} else if(current_price <= lower_selling_price) {
 		if(test) {
 			track_info = { 
@@ -282,7 +282,7 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 		} else {
 			binanceTrader.marketSell(symbol, quantity, (error, response) => {
 				if(error) {
-					console.log("Error occured during Market Sell", error.body);
+					console.log("Error occured during Market Sell", error.body, "\n");
 				} else if(response) {
 					// Sample response ( It is not updated! Try it)
 					// {
@@ -329,7 +329,7 @@ function track_spot_price(symbol, quantity, current_price, lower_selling_price, 
 
 // Start spot trading
 async function start_spot_trade(symbol, interval, minimums={}) {
-	console.log("Fetching initial candles for symbol", symbol, "and interval", interval);
+	console.log("Fetching initial candles for symbol", symbol, "and interval", interval, "\n");
 	const candles = await fetch_initial_candles(symbol, interval);
 
 	let current_state = bot_state.SEARCHING;
@@ -361,7 +361,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 				console.log("previous ema1: ", prev_emas.ema1, ", previous ema2:", prev_emas.ema2);
 
 				const time = new Date(tick.eventTime);
-				console.log("Start trading for", symbol, "at", time.toLocaleTimeString());
+				console.log("Start trading for", symbol, "at", time.toLocaleTimeString(), "\n");
 				
 				// Buy from market
 				if(TRADE_TYPE == trade_type.SPOT) {
@@ -372,12 +372,12 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 
 				if(buy_info && buy_info.price) {
 					current_state = bot_state.TRADING;
-					console.log("Bought", symbol, "at price:", buy_info.price);	
+					console.log("Bought", symbol, "at price:", buy_info.price, "\n");	
 				}
 			}
 		} else if(buy_info && buy_info.price && buy_info.quantity && current_state == bot_state.TRADING) {
 			const current_price = tick.close;
-			console.log("Price of the", symbol, ":", current_price);
+			console.log("Price of the", symbol, ":", current_price, "\n");
 
 			// Track for the price
 			const lower_selling_price = (track_info && track_info.lower_selling_price) || (buy_info && buy_info.price * STOP_LOSS_MULTIPLIER); 
@@ -387,13 +387,13 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 			track_info = track_spot_price(COIN_PAIR, quantity, current_price, lower_selling_price, higher_selling_price, true);
 			
 			if(track_info && track_info.sell_price && track_info.sell_quantity) {
-				console.log("Sold", symbol, ", quantity :", track_info.sell_quantity, ", price :", track_info.sell_price);
+				console.log("Sold", symbol, ", quantity :", track_info.sell_quantity, ", price :", track_info.sell_price, "\n");
 				
 				const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
-				console.log("Profit is :", profit);
+				console.log("Profit is :", profit, "\n");
 
 				total_profit += profit;
-				console.log("Total profit is :", total_profit);
+				console.log("Total profit is :", total_profit, "\n");
 			} 
 				
 			if(!track_info || (track_info.sell_price && track_info.sell_quantity)) {
@@ -416,9 +416,9 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 // Start future trading
 async function start_future_trade(symbol, interval, minimums={}) {
 	if(test) {
-		console.log("Future testing is not implemented");
+		console.log("Future testing is not implemented!\n");
 	} else {
-		console.log("Future trading is not implemented!");
+		console.log("Future trading is not implemented!\n");
 	}
 };
 

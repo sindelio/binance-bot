@@ -5,13 +5,13 @@ currency=USDT
 # Place or remove coin between parantheses
 coin_list=(\
 BAND \
-BNB \
-BTC \
 HOT \
 LTC \
 LUNA \
 MATIC \
 YFII \
+REEF \
+COCOS \
 )
 
 # The .txt files' directory for test results
