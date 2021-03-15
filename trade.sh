@@ -1,6 +1,6 @@
 # Pairs to be traded
-# Place or remove coin between parantheses
-coin_list=(\
+# Place or remove pair between parantheses
+pair_list=(\
 BANDUSDT \
 HOTUSDT \
 LTCUSDT \
@@ -15,8 +15,7 @@ COCOSUSDT \
 output_directory=./outputs/${1}
 mkdir -p ${output_directory}
 
-for coin in ${coin_list[@]};
+for pair in ${pair_list[@]};
 do
-    pair=${coin}${currency}
 	ttab "node bot.js ${pair} > ${output_directory}/${pair}.txt"
 done
