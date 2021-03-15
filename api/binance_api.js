@@ -1,7 +1,13 @@
 // ************* Functions for Binance API ******************* 
-const Binance = require('node-binance-api');
+const BinanceServer = require('binance-api-node').default;
+const BinanceTrader = require('node-binance-api');
 
-let binance_client = new Binance().options({
+let binanceServer = BinanceServer({ 
+	apiKey: "test",
+	apiSecret: "test",
+});
+
+let binanceTrader = new BinanceTrader().options({
 	APIKEY: "test",
 	APISECRET: "test"
 });
@@ -10,7 +16,12 @@ exports.authenticate = (test=true) => {
 	if(!test) {
 		const BINANCE_API_KEY = require("./binance_secrets.json");
 
-		binance_client = new Binance().options({
+		binanceServer = BinanceServer({ 
+			apiKey: BINANCE_API_KEY.api_key,
+			apiSecret: BINANCE_API_KEY.api_secret,
+		});
+
+		binanceTrader = new BinanceTrader().options({
 			APIKEY: BINANCE_API_KEY.api_key,
 			APISECRET: BINANCE_API_KEY.api_secret
 		});
@@ -21,7 +32,7 @@ exports.fetch_exchange_info = async () => {
 	// This function is based on https://github.com/jsappme/node-binance-trader/blob/master/src/trader.js
 
 	return new Promise((resolve, reject) => {
-		binance_client.exchangeInfo((error, response) => {
+		binanceTrader.exchangeInfo((error, response) => {
 			if (error) {
 				console.log(error);
 				return reject(error);
@@ -85,12 +96,13 @@ exports.fetch_candles = async (symbol, interval) => {
 }
 
 exports.ws_candles = (symbol, interval, onUpdate) => {
-	binance_client.websockets.candlesticks(symbol, interval, onUpdate);
+	binanceTrader.websockets.candlesticks(symbol, interval, onUpdate);
 }
 
 // Calculates how much of the asset(coin) the user's balance can buy within the balance limit.
 exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, test=true) => {
-	let buying_balance = balance_limit;
+	let buying_balance = Number(balance_limit);
+	
 	if(!test) {
 		const accountInfo = await binanceServer.accountInfo();
 		const free_balance = parseFloat(accountInfo.balances.find(b => b.asset === trading_currency).free);
@@ -113,7 +125,7 @@ exports.spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onErro
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binance_client.marketBuy(symbol, quantity, (error, response) => {
+		binanceTrader.marketBuy(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {
@@ -157,7 +169,7 @@ exports.spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onErr
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binance_client.marketSell(symbol, quantity, (error, response) => {
+		binanceTrader.marketSell(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {
