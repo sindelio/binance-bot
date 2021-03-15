@@ -76,8 +76,8 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 				const tick_average = tick_sum / TICK_ROUND;
 				tick_sum = tick_count = 0;
 
-				const open_prices = candles.opening.values.concat(open).slice(1);
-				const close_prices = candles.closing.values.concat(tick_average).slice(1);
+				const open_prices = candles.open_prices.concat(open).slice(1);
+				const close_prices = candles.close_prices.concat(tick_average).slice(1);
 
 				const signal = indicators.ema_scalper(open_prices, close_prices);
 
@@ -86,7 +86,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 					const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, SESSION_TYPE == session_type.TEST)
 					
 					const time = new Date(event_time);
-					console.log("Time :", time.toString());
+					console.log("Time :", time.toString(), "\n");
 
 					binance_api.spot_market_buy(COIN_PAIR, calculated_price, calculated_quantity, SESSION_TYPE == session_type.TEST, 
 						(price, quantity) => {
@@ -116,7 +116,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 				
 				if(current_price >= higher_price_limit) {
 					const time = new Date(event_time);
-					console.log("Time :", time.toString());
+					console.log("Time :", time.toString(), "\n");
 
 					track_info = {
 						lower_price_limit : current_price * STOP_LOSS_MULTIPLIER ,
@@ -127,7 +127,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 					console.log("Changing higher limit to :", track_info.higher_price_limit, "\n");
 				} else if(current_price <= lower_price_limit) {
 					const time = new Date(event_time);
-					console.log("Time :", time.toString());
+					console.log("Time :", time.toString(), "\n");
 
 					binance_api.spot_market_sell(COIN_PAIR, current_price, quantity, SESSION_TYPE == session_type.TEST,
 						(price, quantity) => {
@@ -169,9 +169,12 @@ async function start_future_trade(symbol, interval, minimums={}) {
 };
 
 async function main() {
+	console.log("Authenticating...")
 	binance_api.authenticate(SESSION_TYPE == session_type.TEST);
+	console.log("Fetching exchange info...")
 	const minimums = await binance_api.fetch_exchange_info();
 
+	console.log("Starting...")
 	if(TRADE_TYPE == trade_type.SPOT) {
 		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums);
 	} else if(TRADE_TYPE == trade_type.FUTURE) {
