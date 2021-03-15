@@ -26,8 +26,8 @@ const CANDLE_INTERVAL = process.argv[3]?.toString() || "15m";
 const TICK_ROUND = parseInt(process.argv[4]) || 5;
 
 const BALANCE_LIMIT = 15;
-const PROFIT_MULTIPLIER = 1.01;
-const STOP_LOSS_MULTIPLIER = 0.99;
+const PROFIT_MULTIPLIER = 1.05;
+const STOP_LOSS_MULTIPLIER = 0.995;
 
 // Add latest candle to the list
 function add_candle(candles, latest_candle) {
@@ -118,8 +118,8 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 					console.log("Time :", time.toString(), "\n");
 
 					track_info = {
-						lower_price_limit : current_price * STOP_LOSS_MULTIPLIER ,
-						higher_price_limit : current_price * PROFIT_MULTIPLIER ,
+						lower_price_limit : higher_price_limit * STOP_LOSS_MULTIPLIER ,
+						higher_price_limit : higher_price_limit * PROFIT_MULTIPLIER ,
 					};
 
 					console.log("Changing lower limit to :", track_info.lower_price_limit, "\n");

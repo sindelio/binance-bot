@@ -5,12 +5,10 @@ BANDUSDT \
 HOTUSDT \
 LTCUSDT \
 MATICUSDT \
-REEFUSDT \
-COCOSUSDT \
 )
 
 tick_round_list=(\
-1 \
+10 \
 15 \
 30 \
 )

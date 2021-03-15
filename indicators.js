@@ -7,7 +7,7 @@ exports.ema_scalper = (open_prices, close_prices) => {
 	const [prev_ema1, curr_ema1] = EMA.calculate({period: 13, values: close_prices}).slice(-2).map(precise);
 	const [prev_ema2, curr_ema2] = EMA.calculate({period: 21, values: open_prices}).slice(-2).map(precise);
 	
-	const signal = (prev_ema2 >= prev_ema1) && (curr_ema2 <= curr_ema1);
+	const signal = (prev_ema2 >= prev_ema1) && (curr_ema2 < curr_ema1);
 	if(signal) {
 		console.log("current ema1 :", curr_ema1, "current ema2 :", curr_ema2);
 		console.log("previous ema1 :", prev_ema1, "previous ema2 :", prev_ema2);
