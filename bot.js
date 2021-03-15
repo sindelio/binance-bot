@@ -29,15 +29,13 @@ const STOP_LOSS_MULTIPLIER = 0.99;
 
 // Add latest candle to the list
 function add_candle(candles, latest_candle) {
-	candles.opening.values.shift();
-	candles.opening.times.shift();
-	candles.closing.values.shift();
-	candles.closing.times.shift();
+	candles.open_prices.shift();
+	candles.close_prices.shift();
+	candles.times.shift();
 	
-	candles.opening.values.push(Number(latest_candle.open));
-	candles.opening.times.push(latest_candle.startTime);
-	candles.closing.values.push(Number(latest_candle.close));
-	candles.closing.times.push(latest_candle.closeTime);
+	candles.open_prices.push(Number(latest_candle.open));
+	candles.close_prices.push(Number(latest_candle.close));
+	candles.times.push(latest_candle.event_time);
 }
 
 // Start spot trading
@@ -53,19 +51,28 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 	
 	binance_api.ws_candles(symbol, interval,
 		async (tick) => {
-			const current_price = Number(tick.close) || 0;
+			const { 
+				E: event_time,
+				k: { 
+					o: open, 
+					c: close, 
+					x: isFinal 
+				}
+			} = tick;
+			
+			const current_price = Number(close) || 0;
 
-			if(current_state == bot_state.SEARCHING && tick.isFinal) {
+			if(current_state == bot_state.SEARCHING && isFinal) {
 				// Update candles and search for opportunity when candle is finished
-				add_candle(candles, tick);
+				add_candle(candles, {open, close, event_time});
 				
-				const signal = indicators.ema_scalper(candles.opening.values, candles.closing.values);
+				const signal = indicators.ema_scalper(candles.open_prices, candles.close_prices);
 
 				if(signal) {			
 					// Buy from market
 					const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, SESSION_TYPE == session_type.TEST)
 					
-					const time = new Date(tick.eventTime);
+					const time = new Date(event_time);
 					console.log("Time :", time.toLocaleTimeString());
 
 					binance_api.spot_market_buy(COIN_PAIR, calculated_price, calculated_quantity, SESSION_TYPE == session_type.TEST, 
@@ -100,13 +107,13 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 						higher_price_limit : current_price * PROFIT_MULTIPLIER ,
 					};
 
-					const time = new Date(tick.eventTime);
+					const time = new Date(event_time);
 					console.log("Time :", time.toLocaleTimeString());
 
 					console.log("Changing lower limit to :", track_info.lower_price_limit, "\n");
 					console.log("Changing higher limit to :", track_info.higher_price_limit, "\n");
 				} else if(current_price <= lower_price_limit) {
-					const time = new Date(tick.eventTime);
+					const time = new Date(event_time);
 					console.log("Time :", time.toLocaleTimeString());
 
 					binance_api.spot_market_sell(COIN_PAIR, current_price, quantity, SESSION_TYPE == session_type.TEST,

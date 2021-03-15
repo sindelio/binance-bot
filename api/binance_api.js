@@ -1,13 +1,7 @@
-// ************* Functions for Binance API *******************
-const BinanceServer = require('binance-api-node').default;
-const BinanceTrader = require('node-binance-api');
+// ************* Functions for Binance API ******************* 
+const Binance = require('node-binance-api');
 
-let binanceServer = BinanceServer({ 
-	apiKey: "test",
-	apiSecret: "test",
-});
-
-let binanceTrader = new BinanceTrader().options({
+let binance_client = new Binance().options({
 	APIKEY: "test",
 	APISECRET: "test"
 });
@@ -16,12 +10,7 @@ exports.authenticate = (test=true) => {
 	if(!test) {
 		const BINANCE_API_KEY = require("./binance_secrets.json");
 
-		binanceServer = BinanceServer({ 
-			apiKey: BINANCE_API_KEY.api_key,
-			apiSecret: BINANCE_API_KEY.api_secret,
-		});
-		
-		binanceTrader = new BinanceTrader().options({
+		binance_client = new Binance().options({
 			APIKEY: BINANCE_API_KEY.api_key,
 			APISECRET: BINANCE_API_KEY.api_secret
 		});
@@ -32,7 +21,7 @@ exports.fetch_exchange_info = async () => {
 	// This function is based on https://github.com/jsappme/node-binance-trader/blob/master/src/trader.js
 
 	return new Promise((resolve, reject) => {
-		binanceTrader.exchangeInfo((error, response) => {
+		binance_client.exchangeInfo((error, response) => {
 			if (error) {
 				console.log(error);
 				return reject(error);
@@ -81,29 +70,22 @@ exports.fetch_candles = async (symbol, interval) => {
 	}
 
 	const new_candles = {
-		opening : {
-			values: [],
-			times: [],
-		},
-		closing : {
-			values: [],
-			times: [],
-		},
+		open_prices : [],
+		close_prices : [],
+		times : []
 	}
 	
 	for(let i = 0; i < candles.length - 1; ++i) {
-		new_candles.opening.values[i] = Number(candles[i].open);
-		new_candles.opening.times[i] = candles[i].openTime;
-
-		new_candles.closing.values[i] = Number(candles[i].close);
-		new_candles.closing.times[i] = candles[i].closeTime;
+		new_candles.open_prices[i] = Number(candles[i].open);
+		new_candles.close_prices[i] = Number(candles[i].close);
+		new_candles.times[i] = candles[i].closeTime;
 	}
 
 	return new_candles;
 }
 
 exports.ws_candles = (symbol, interval, onUpdate) => {
-	binanceServer.ws.candles(symbol, interval, onUpdate);
+	binance_client.websockets.candlesticks(symbol, interval, onUpdate);
 }
 
 // Calculates how much of the asset(coin) the user's balance can buy within the balance limit.
@@ -131,7 +113,7 @@ exports.spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onErro
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binanceTrader.marketBuy(symbol, quantity, (error, response) => {
+		binance_client.marketBuy(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {
@@ -175,7 +157,7 @@ exports.spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onErr
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binanceTrader.marketSell(symbol, quantity, (error, response) => {
+		binance_client.marketSell(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {
