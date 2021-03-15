@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "binance-api-node": "^0.8.10",
     "node-binance-api": "^0.12.5",
     "technicalindicators": "^2.0.5",
     "ttab": "^0.7.0"
