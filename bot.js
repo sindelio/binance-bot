@@ -71,10 +71,9 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 			tick_count += 1;
 			tick_sum += current_price;
 
-			if(current_state == bot_state.SEARCHING && tick_count % TICK_ROUND == 0) {
+			if(current_state == bot_state.SEARCHING && tick_count == TICK_ROUND) {
 				// Search for opportunity when average is calculated
-				const tick_average = tick_sum / TICK_ROUND;
-				tick_sum = tick_count = 0;
+				const tick_average = tick_sum / tick_count;
 
 				const open_prices = candles.open_prices.concat(open).slice(1);
 				const close_prices = candles.close_prices.concat(tick_average).slice(1);
@@ -159,6 +158,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 			}
 
 			if(isFinal) add_candle(candles, {open, close, event_time});
+			if(tick_count == TICK_ROUND) tick_sum = tick_count = 0;
 		}
 	);
 };
