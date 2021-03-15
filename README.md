@@ -17,6 +17,7 @@ Here are some points that deserve attention:
 - Trade within the limits of the exchange info
 - On initial candle fetching , try to eliminate last candle if it is not final
 - Try to use only one binance node library
+- Recover from internet connection failure
 
 # Dependencies
 
