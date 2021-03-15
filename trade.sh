@@ -4,18 +4,26 @@ pair_list=(\
 BANDUSDT \
 HOTUSDT \
 LTCUSDT \
-LUNAUSDT \
 MATICUSDT \
-YFIIUSDT \
 REEFUSDT \
 COCOSUSDT \
 )
 
-# The .txt files' directory for test results
-output_directory=./outputs/${1}
-mkdir -p ${output_directory}
+tick_round_list=(\
+1 \
+10 \
+15 \
+30 \
+)
+
+interval=15m
 
 for pair in ${pair_list[@]};
 do
-	ttab "node bot.js ${pair} > ${output_directory}/${pair}.txt"
+	for tick_round in ${tick_round_list[@]};
+	do
+		output_directory=./outputs/take_average_${tick_round}
+		mkdir -p ${output_directory}
+		ttab "node bot.js ${pair} ${interval} ${tick_round} > ${output_directory}/${pair}.txt"
+	done
 done
