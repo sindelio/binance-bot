@@ -19,14 +19,14 @@ const session_type = {
 const SESSION_TYPE = session_type.TEST;
 const TRADE_TYPE = trade_type.SPOT;
 
+const BALANCE_LIMIT = 1000;
 const TRADING_CURRENCY = "USDT";
+
 const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
 const CANDLE_INTERVAL = process.argv[3]?.toString() || "15m";
+const TICK_ROUND = parseInt(process.argv[4]) || 30;
 
-const TICK_ROUND = parseInt(process.argv[4]) || 5;
-
-const BALANCE_LIMIT = 15;
-const PROFIT_MULTIPLIER = 1.05;
+const PROFIT_MULTIPLIER = 1.005;
 const STOP_LOSS_MULTIPLIER = 0.995;
 
 // Add latest candle to the list
@@ -41,7 +41,7 @@ function add_candle(candles, latest_candle) {
 }
 
 // Start spot trading
-async function start_spot_trade(symbol, interval, minimums={}) {
+async function start_spot_trade(symbol, interval, filters={}) {
 	console.log("Fetching candles for symbol", symbol, "and interval", interval, "\n");
 	console.log("Tick round :", TICK_ROUND, "\n");
 
@@ -54,7 +54,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 	
 	let tick_sum = 0;
 	let tick_count = 0;
-	
+
 	binance_api.ws_candles(symbol, interval,
 		async (tick) => {
 			const { 
@@ -77,12 +77,12 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 
 				const open_prices = candles.open_prices.concat(open).slice(1);
 				const close_prices = candles.close_prices.concat(tick_average).slice(1);
-
-				const signal = indicators.ema_scalper(open_prices, close_prices);
+				
+				const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit);
 
 				if(signal) {			
 					// Buy from market
-					const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, SESSION_TYPE == session_type.TEST)
+					const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
 					
 					const time = new Date(event_time);
 					console.log("Time :", time.toString(), "\n");
@@ -164,7 +164,7 @@ async function start_spot_trade(symbol, interval, minimums={}) {
 };
 
 // Start future trading
-async function start_future_trade(symbol, interval, minimums={}) {
+async function start_future_trade(symbol, interval, filters={}) {
 	console.log("Future trading is not implemented!\n");
 };
 
@@ -176,9 +176,9 @@ async function main() {
 
 	console.log("Starting...")
 	if(TRADE_TYPE == trade_type.SPOT) {
-		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums);
+		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR]);
 	} else if(TRADE_TYPE == trade_type.FUTURE) {
-		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, minimums);
+		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR]);
 	}	
 }
 

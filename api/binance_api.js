@@ -43,15 +43,15 @@ exports.fetch_exchange_info = async () => {
 					let filters = { status: obj.status }
 					for (let filter of obj.filters) {
 						if (filter.filterType == "MIN_NOTIONAL") {
-							filters.minNotional = filter.minNotional
+							filters.min_notional = Number(filter.minNotional);
 						} else if (filter.filterType == "PRICE_FILTER") {
-							filters.minPrice = filter.minPrice
-							filters.maxPrice = filter.maxPrice
-							filters.tickSize = filter.tickSize
+							filters.min_price = Number(filter.minPrice);
+							filters.max_price = Number(filter.maxPrice);
+							filters.price_digit = -Math.log10(Number(filter.tickSize));
 						} else if (filter.filterType == "LOT_SIZE") {
-							filters.stepSize = filter.stepSize
-							filters.minQty = filter.minQty
-							filters.maxQty = filter.maxQty
+							filters.quantity_digit = -Math.log10(Number(filter.stepSize));
+							filters.min_quantity = Number(filter.minQty);
+							filters.max_quantity = Number(filter.maxQty);
 						}
 					}
 					
@@ -100,24 +100,51 @@ exports.ws_candles = (symbol, interval, onUpdate) => {
 }
 
 // Calculates how much of the asset(coin) the user's balance can buy within the balance limit.
-exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, test=true) => {
-	let buying_balance = Number(balance_limit);
+exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, filters={}, test=true) => {
+	function clamp(number, min, max) {
+		return Math.max(min, Math.min(number, max));
+	}
+
+	// ****** FILTERS *******
+	// 	status: 'TRADING',
+	// 	min_price: 0.01,
+	// 	max_price: 1000000,
+	// 	price_digit: 2,
+	// 	quantity_digit: 6,
+	// 	min_quantity: 0.000001,
+	// 	max_quantity: 9000,
+	// 	min_notional: 10,
+	// 	orderTypes: [
+	// 	  'LIMIT',
+	// 	  'LIMIT_MAKER',
+	// 	  'MARKET',
+	// 	  'STOP_LOSS_LIMIT',
+	// 	  'TAKE_PROFIT_LIMIT'
+	// 	],
+	// 	icebergAllowed: true
+	//   }
+
+	let free_balance = balance_limit;
 	
 	if(!test) {
 		const accountInfo = await binanceServer.accountInfo();
-		const free_balance = parseFloat(accountInfo.balances.find(b => b.asset === trading_currency).free);
-		buying_balance = free_balance > balance_limit ? balance_limit : free_balance;
+		free_balance = parseFloat(accountInfo.balances.find(b => b.asset === trading_currency).free);
 	}
-	
-	const prices = await binanceServer.prices();
-	const coin_price = parseFloat(prices[symbol]);
-	
-	const quantity = buying_balance / coin_price; 
 
+	const buying_balance = clamp(free_balance, filters.min_notional, balance_limit); // Clamp into filter
+
+	const prices = await binanceServer.prices();
+	let coin_price = parseFloat(prices[symbol]);
+
+	coin_price = clamp(coin_price, filters.min_price, filters.max_price);
+
+	let quantity = buying_balance / coin_price;
+	quantity = clamp(quantity, filters.min_quantity, filters.max_quantity);
+	
 	return {
-		calculated_price : coin_price,
-		calculated_quantity : quantity,
-	};
+		calculated_price : coin_price.toFixed(filters.price_digit),
+		calculated_quantity : quantity.toFixed(filters.quantity_digit)
+	}
 }
 
 // Spot market buy
@@ -208,4 +235,4 @@ exports.spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onErr
 			}
 		});
 	}
-} 
+}
