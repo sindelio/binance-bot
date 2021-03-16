@@ -19,7 +19,7 @@ const session_type = {
 const SESSION_TYPE = session_type.TEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const BALANCE_LIMIT = 1000;
+const BALANCE_LIMIT = (SESSION_TYPE == session_type.TEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
 
 const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
@@ -65,7 +65,7 @@ async function start_spot_trade(symbol, interval, filters={}) {
 					x: isFinal 
 				}
 			} = tick;
-			
+
 			const current_price = Number.parseFloat(close);
 
 			tick_count += 1;
@@ -79,6 +79,8 @@ async function start_spot_trade(symbol, interval, filters={}) {
 				const close_prices = candles.close_prices.concat(tick_average).slice(1);
 				
 				const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit);
+
+				const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
 
 				if(signal) {			
 					// Buy from market
