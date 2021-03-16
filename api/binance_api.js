@@ -12,7 +12,7 @@ let binanceTrader = new BinanceTrader().options({
 	APISECRET: "test"
 });
 
-exports.authenticate = (test=true) => {
+const authenticate = (test=true) => {
 	if(!test) {
 		const BINANCE_API_KEY = require("./binance_secrets.json");
 
@@ -28,7 +28,7 @@ exports.authenticate = (test=true) => {
 	}
 }
 
-exports.fetch_exchange_info = async () => {
+const fetch_exchange_info = async () => {
 	// This function is based on https://github.com/jsappme/node-binance-trader/blob/master/src/trader.js
 
 	return new Promise((resolve, reject) => {
@@ -68,7 +68,7 @@ exports.fetch_exchange_info = async () => {
 }
 
 // Adjust the candles format for the indicators
-exports.fetch_candles = async (symbol, interval) => {
+const fetch_candles = async (symbol, interval) => {
 	let candles = [];
 	try {
 		candles = await binanceServer.candles({
@@ -101,12 +101,40 @@ exports.fetch_candles = async (symbol, interval) => {
 	return new_candles;
 }
 
-exports.ws_candles = (symbol, interval, onUpdate) => {
+const ws_candles = (symbol, interval, onUpdate) => {
 	binanceTrader.websockets.candlesticks(symbol, interval, onUpdate);
 }
 
+const get_price = (symbol) => {
+	return new Promise((resolve, reject) => {
+		binanceTrader.prices(symbol, (error, prices) => {
+			if (error) {
+				console.error(error);
+				return reject(error);
+			} else {
+				const result = parseFloat(prices[symbol]);
+				return resolve(result);
+			}
+		});
+	});
+}
+
+const get_available_balance = (currency="USDT") => {
+	return new Promise((resolve, reject) => {
+		binanceTrader.balance((error, balances) => {
+			if (error) {
+				console.error(error);
+				return reject(error);
+			} else {
+				const result = parseFloat(balances[currency].available);
+				return resolve(result);
+			}
+		});
+	});
+}
+
 // Calculates how much of the asset(coin) the user's balance can buy within the balance limit.
-exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, filters={}, test=true) => {
+const calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, filters={}, test=true) => {
 	function clamp(number, min, max) {
 		return Math.max(min, Math.min(number, max));
 	}
@@ -128,33 +156,29 @@ exports.calculate_buy_quantity = async (symbol, trading_currency="USDT", balance
 	// 	  'TAKE_PROFIT_LIMIT'
 	// 	],
 	// 	icebergAllowed: true
-	//   }
+	// }
 
-	let free_balance = balance_limit;
-	
+	let buying_balance = balance_limit;
+
 	if(!test) {
-		const accountInfo = await binanceServer.accountInfo();
-		free_balance = parseFloat(accountInfo.balances.find(b => b.asset === trading_currency).free);
+		const available_balance = await get_available_balance(trading_currency);
+		buying_balance = clamp(available_balance, filters.min_notional, balance_limit);
 	}
-
-	const buying_balance = clamp(free_balance, filters.min_notional, balance_limit); // Clamp into filter
-
-	const prices = await binanceServer.prices();
-	let coin_price = parseFloat(prices[symbol]);
-
+	
+	let coin_price = await get_price(symbol);
 	coin_price = clamp(coin_price, filters.min_price, filters.max_price);
 
 	let quantity = buying_balance / coin_price;
 	quantity = clamp(quantity, filters.min_quantity, filters.max_quantity);
 	
 	return {
-		calculated_price : coin_price.toFixed(filters.price_digit),
-		calculated_quantity : quantity.toFixed(filters.quantity_digit)
+		calculated_price : parseFloat(coin_price.toFixed(filters.price_digit)),
+		calculated_quantity : parseFloat(quantity.toFixed(filters.quantity_digit))
 	}
 }
 
 // Spot market buy
-exports.spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onError) => {
+const spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onError) => {
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
@@ -198,7 +222,7 @@ exports.spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onErro
 }
 
 // Spot market sell
-exports.spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onError) => {
+const spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onError) => {
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
@@ -242,3 +266,11 @@ exports.spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onErr
 		});
 	}
 }
+
+exports.authenticate = authenticate;
+exports.fetch_exchange_info = fetch_exchange_info;
+exports.fetch_candles = fetch_candles;
+exports.ws_candles = ws_candles;
+exports.calculate_buy_quantity = calculate_buy_quantity;
+exports.spot_market_buy = spot_market_buy;
+exports.spot_market_sell = spot_market_sell;
