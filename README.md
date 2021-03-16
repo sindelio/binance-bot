@@ -13,9 +13,7 @@ The bot relies only in ema scalping indicator, so it's quite simple.
 
 Here are some points that deserve attention:
 
-- More consideration with the proft and stop-loss price calculations (multipliers and higher limit increase ratio)
-- Trade within the limits of the exchange info
-- On initial candle fetching , try to eliminate last candle if it is not final
+- More consideration with the profit and stop-loss price calculations (multipliers and higher limit increase ratio)
 - Try to use only one binance node library
 - Recover from internet connection failure
 

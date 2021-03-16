@@ -86,7 +86,13 @@ exports.fetch_candles = async (symbol, interval) => {
 		times : []
 	}
 	
-	for(let i = 0; i < candles.length - 1; ++i) {
+	const current_time = Date.now()
+	const latest_close_time = candles[candles.length - 1].closeTime;
+
+	// See if latest candle is closed already or not
+	const size = (current_time < latest_close_time) ? candles.length - 1 : candles.length;
+
+	for(let i = 0; i < size; ++i) {
 		new_candles.open_prices[i] = Number(candles[i].open);
 		new_candles.close_prices[i] = Number(candles[i].close);
 		new_candles.times[i] = candles[i].closeTime;
