@@ -1,27 +1,13 @@
 // ************* Functions for Binance API ******************* 
-const BinanceServer = require('binance-api-node').default;
-const BinanceTrader = require('node-binance-api');
+const Binance = require('node-binance-api');
 
-let binanceServer = BinanceServer({ 
-	apiKey: "test",
-	apiSecret: "test",
-});
-
-let binanceTrader = new BinanceTrader().options({
-	APIKEY: "test",
-	APISECRET: "test"
-});
+let binance_client = new Binance();
 
 const authenticate = (test=true) => {
 	if(!test) {
 		const BINANCE_API_KEY = require("./binance_secrets.json");
 
-		binanceServer = BinanceServer({ 
-			apiKey: BINANCE_API_KEY.api_key,
-			apiSecret: BINANCE_API_KEY.api_secret,
-		});
-
-		binanceTrader = new BinanceTrader().options({
+		binance_client.setOptions({
 			APIKEY: BINANCE_API_KEY.api_key,
 			APISECRET: BINANCE_API_KEY.api_secret
 		});
@@ -32,7 +18,7 @@ const fetch_exchange_info = async () => {
 	// This function is based on https://github.com/jsappme/node-binance-trader/blob/master/src/trader.js
 
 	return new Promise((resolve, reject) => {
-		binanceTrader.exchangeInfo((error, response) => {
+		binance_client.exchangeInfo((error, response) => {
 			if (error) {
 				console.log(error);
 				return reject(error);
@@ -69,45 +55,56 @@ const fetch_exchange_info = async () => {
 
 // Adjust the candles format for the indicators
 const fetch_candles = async (symbol, interval) => {
-	let candles = [];
-	try {
-		candles = await binanceServer.candles({
-			symbol: symbol,
-			interval: interval,
+	return new Promise((resolve, reject) => {
+		binance_client.candlesticks(symbol, interval, (error, candles, symbol) => {
+			if (error) {
+				console.error(error);
+				return reject(error);
+			} else {
+				const new_candles = {
+					open_prices : [],
+					close_prices : [],
+					times : []
+				}
+				
+				const current_time = Date.now();
+				const latest_close_time = candles[candles.length - 1][6];
+			
+				// See if latest candle is closed already or not
+				const size = (current_time < latest_close_time) ? candles.length - 1 : candles.length;
+			
+				for(let i = 0; i < size; ++i) {
+					const [open_time, open, high, low, close, volume, close_time, asset_volume, trades, buy_base_volume, buy_asset_volume, ignored] = candles[i];
+					
+					new_candles.open_prices[i] = Number(open);
+					new_candles.close_prices[i] = Number(close);
+					new_candles.times[i] = close_time;
+				}
+
+				return resolve(new_candles);
+			}
 		});
-	} catch (e) {
-		console.error('Error fetching the initial candles : ', e);
-		return null;
-	}
-
-	const new_candles = {
-		open_prices : [],
-		close_prices : [],
-		times : []
-	}
-	
-	const current_time = Date.now()
-	const latest_close_time = candles[candles.length - 1].closeTime;
-
-	// See if latest candle is closed already or not
-	const size = (current_time < latest_close_time) ? candles.length - 1 : candles.length;
-
-	for(let i = 0; i < size; ++i) {
-		new_candles.open_prices[i] = Number(candles[i].open);
-		new_candles.close_prices[i] = Number(candles[i].close);
-		new_candles.times[i] = candles[i].closeTime;
-	}
-
-	return new_candles;
+	});
 }
 
 const ws_candles = (symbol, interval, onUpdate) => {
-	binanceTrader.websockets.candlesticks(symbol, interval, onUpdate);
+	binance_client.websockets.candlesticks(symbol, interval, (tick) => {
+		const { 
+			E: event_time,
+			k: { 
+				o: open, 
+				c: close, 
+				x: isFinal 
+			}
+		} = tick;
+
+		onUpdate(open, close, event_time, isFinal);
+	});
 }
 
 const get_price = (symbol) => {
 	return new Promise((resolve, reject) => {
-		binanceTrader.prices(symbol, (error, prices) => {
+		binance_client.prices(symbol, (error, prices) => {
 			if (error) {
 				console.error(error);
 				return reject(error);
@@ -121,7 +118,7 @@ const get_price = (symbol) => {
 
 const get_available_balance = (currency="USDT") => {
 	return new Promise((resolve, reject) => {
-		binanceTrader.balance((error, balances) => {
+		binance_client.balance((error, balances) => {
 			if (error) {
 				console.error(error);
 				return reject(error);
@@ -182,7 +179,7 @@ const spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onError)
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binanceTrader.marketBuy(symbol, quantity, (error, response) => {
+		binance_client.marketBuy(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {
@@ -226,7 +223,7 @@ const spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onError
 	if(test) {
 		onSuccess(price, quantity);
 	} else {
-		binanceTrader.marketSell(symbol, quantity, (error, response) => {
+		binance_client.marketSell(symbol, quantity, (error, response) => {
 			if(error) {
 				onError(error);
 			} else if(response) {

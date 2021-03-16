@@ -2,15 +2,14 @@
 # Place or remove pair between parantheses
 pair_list=(\
 BANDUSDT \
-HOTUSDT \
 LTCUSDT \
 MATICUSDT \
 CAKEUSDT \
 )
 
 tick_round_list=(\
-10 \
 15 \
+20 \
 30 \
 )
 

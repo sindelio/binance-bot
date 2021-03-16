@@ -14,8 +14,6 @@ The bot relies only in ema scalping indicator, so it's quite simple.
 Here are some points that deserve attention:
 
 - More consideration with the profit and stop-loss price calculations (multipliers and higher limit increase ratio)
-- Try to use only one binance node library
-- Recover from internet connection failure
 
 # Dependencies
 
@@ -56,15 +54,7 @@ $ npm i
 Inside the project root directory (/binance_bot):
 
 ```
-$ node bot_public.js <coin-pair> <candle-interval>
-```
-
-or
-
-Running for list of coin pairs :
-
-```
-$ ./trade.sh <output-directory>
+$ node botjs <coin-pair> <candle-interval>
 ```
 
 # Contributions

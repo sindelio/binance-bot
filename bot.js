@@ -55,17 +55,7 @@ async function start_spot_trade(symbol, interval, filters={}) {
 	let tick_sum = 0;
 	let tick_count = 0;
 
-	binance_api.ws_candles(symbol, interval,
-		async (tick) => {
-			const { 
-				E: event_time,
-				k: { 
-					o: open, 
-					c: close, 
-					x: isFinal 
-				}
-			} = tick;
-
+	binance_api.ws_candles(symbol, interval, async (open, close, event_time, isFinal) => {
 			const current_price = Number.parseFloat(close);
 
 			tick_count += 1;
@@ -79,8 +69,6 @@ async function start_spot_trade(symbol, interval, filters={}) {
 				const close_prices = candles.close_prices.concat(tick_average).slice(1);
 				
 				const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit);
-
-				const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
 
 				if(signal) {			
 					// Buy from market
