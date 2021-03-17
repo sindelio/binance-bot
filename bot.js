@@ -1,6 +1,6 @@
 const binance_api = require('./binance_api');
 const indicators = require('./indicators')
-const { logger } = require('./logger')
+const log_util = require('./log_util')
 
 const bot_state = {
 	SEARCHING : "searching",
