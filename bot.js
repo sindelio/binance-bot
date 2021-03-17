@@ -1,5 +1,6 @@
-const binance_api = require('./api/binance_api');
+const binance_api = require('./binance_api');
 const indicators = require('./indicators')
+const { logger } = require('./logger')
 
 const bot_state = {
 	SEARCHING : "searching",
@@ -26,8 +27,8 @@ const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
 const CANDLE_INTERVAL = process.argv[3]?.toString() || "15m";
 const TICK_ROUND = parseInt(process.argv[4]) || 30;
 
-const PROFIT_MULTIPLIER = 1.005;
-const STOP_LOSS_MULTIPLIER = 0.995;
+const PROFIT_MULTIPLIER = 1.015;
+const STOP_LOSS_MULTIPLIER = 0.99;
 
 // Add latest candle to the list
 function add_candle(candles, latest_candle) {
@@ -72,30 +73,32 @@ async function start_spot_trade(symbol, interval, filters={}) {
 
 				if(signal) {			
 					// Buy from market
-					const { calculated_price, calculated_quantity } = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
+					const calculation_result = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
 					
-					const time = new Date(event_time);
-					console.log("Time :", time.toString(), "\n");
+					if(calculation_result?.price && calculation_result?.quantity) {
+						const time = new Date(event_time);
+						console.log("Time :", time.toString(), "\n");
 
-					binance_api.spot_market_buy(COIN_PAIR, calculated_price, calculated_quantity, SESSION_TYPE == session_type.TEST, 
-						(price, quantity) => {
-							// onSuccess
-							buy_info = {
-								price: price ,
-								quantity: quantity
-							};
+						binance_api.spot_market_buy(COIN_PAIR, calculation_result.price, calculation_result.quantity, SESSION_TYPE == session_type.TEST, 
+							(price, quantity) => {
+								// onSuccess
+								buy_info = {
+									price: price ,
+									quantity: quantity
+								};
 
-							console.log("Bought", symbol, "-> price :", buy_info.price, "and quantity :", buy_info.quantity, "\n");
+								console.log("Bought", symbol, "-> price :", buy_info.price, "and quantity :", buy_info.quantity, "\n");
 
-							// Reset variables before state transition
-							track_info = null;
-							current_state = bot_state.TRADING;
-						}, 
-						(error) => {
-							// onError
-							console.log("Error occured during market buy :", error.body);
-						}
-					);
+								// Reset variables before state transition
+								track_info = null;
+								current_state = bot_state.TRADING;
+							}, 
+							(error) => {
+								// onError
+								console.error("Error occured during market buy :", error);
+							}
+						);
+					}		
 				}
 			} else if(current_state == bot_state.TRADING && buy_info?.price && buy_info?.quantity) {
 				// Track for the price
@@ -103,18 +106,7 @@ async function start_spot_trade(symbol, interval, filters={}) {
 				const higher_price_limit = track_info?.higher_price_limit || (buy_info?.price || current_price) * PROFIT_MULTIPLIER;
 				const quantity = buy_info?.quantity || 0 ;
 				
-				if(current_price >= higher_price_limit) {
-					const time = new Date(event_time);
-					console.log("Time :", time.toString(), "\n");
-
-					track_info = {
-						lower_price_limit : higher_price_limit * STOP_LOSS_MULTIPLIER ,
-						higher_price_limit : higher_price_limit * PROFIT_MULTIPLIER ,
-					};
-
-					console.log("Changing lower limit to :", track_info.lower_price_limit, "\n");
-					console.log("Changing higher limit to :", track_info.higher_price_limit, "\n");
-				} else if(current_price <= lower_price_limit) {
+				if(current_price >= higher_price_limit || current_price <= lower_price_limit) {
 					const time = new Date(event_time);
 					console.log("Time :", time.toString(), "\n");
 
@@ -141,7 +133,7 @@ async function start_spot_trade(symbol, interval, filters={}) {
 						},
 						(error) => {
 							// onError
-							console.log("Error occured during market sell :", error.body);
+							console.error("Error occured during market sell :", error);
 						}
 					);
 				}

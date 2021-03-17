@@ -5,4 +5,5 @@ binance_secrets.json
 node_modules
 
 # Ignore output files
-**/*.txt
+*.txt
+*.log

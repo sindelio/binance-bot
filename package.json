@@ -2,6 +2,7 @@
   "dependencies": {
     "node-binance-api": "^0.12.5",
     "technicalindicators": "^2.0.5",
-    "ttab": "^0.7.0"
+    "ttab": "^0.7.0",
+    "winston": "^3.3.3"
   }
 }

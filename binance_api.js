@@ -20,7 +20,7 @@ const fetch_exchange_info = async () => {
 	return new Promise((resolve, reject) => {
 		binance_client.exchangeInfo((error, response) => {
 			if (error) {
-				console.log(error);
+				console.error(error.body);
 				return reject(error);
 			} else {
 				let minimums = {};
@@ -58,7 +58,7 @@ const fetch_candles = async (symbol, interval) => {
 	return new Promise((resolve, reject) => {
 		binance_client.candlesticks(symbol, interval, (error, candles, symbol) => {
 			if (error) {
-				console.error(error);
+				console.error(error.body);
 				return reject(error);
 			} else {
 				const new_candles = {
@@ -106,7 +106,7 @@ const get_price = (symbol) => {
 	return new Promise((resolve, reject) => {
 		binance_client.prices(symbol, (error, prices) => {
 			if (error) {
-				console.error(error);
+				console.error(error.body);
 				return reject(error);
 			} else {
 				const result = parseFloat(prices[symbol]);
@@ -120,7 +120,7 @@ const get_available_balance = (currency="USDT") => {
 	return new Promise((resolve, reject) => {
 		binance_client.balance((error, balances) => {
 			if (error) {
-				console.error(error);
+				console.error(error.body);
 				return reject(error);
 			} else {
 				const result = parseFloat(balances[currency].available);
@@ -159,19 +159,24 @@ const calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_l
 
 	if(!test) {
 		const available_balance = await get_available_balance(trading_currency);
-		buying_balance = clamp(available_balance, filters.min_notional, balance_limit);
+		buying_balance = clamp(available_balance, 0, balance_limit);
 	}
 	
-	let coin_price = await get_price(symbol);
-	coin_price = clamp(coin_price, filters.min_price, filters.max_price);
-
-	let quantity = buying_balance / coin_price;
-	quantity = clamp(quantity, filters.min_quantity, filters.max_quantity);
+	if(buying_balance >= filters.min_notional) {
+		let coin_price = await get_price(symbol);
+		coin_price = clamp(coin_price, filters.min_price, filters.max_price);
 	
-	return {
-		calculated_price : parseFloat(coin_price.toFixed(filters.price_digit)),
-		calculated_quantity : parseFloat(quantity.toFixed(filters.quantity_digit))
-	}
+		let quantity = buying_balance / coin_price;
+		quantity = clamp(quantity, filters.min_quantity, filters.max_quantity);
+		
+		return {
+			price : parseFloat(coin_price.toFixed(filters.price_digit)),
+			quantity : parseFloat(quantity.toFixed(filters.quantity_digit))
+		}
+	} else {
+		console.error(buying_balance, trading_currency, "is below to minimum balance to purchase !")
+		return null;
+	}	
 }
 
 // Spot market buy
@@ -181,7 +186,7 @@ const spot_market_buy = (symbol, price, quantity, test=true, onSuccess, onError)
 	} else {
 		binance_client.marketBuy(symbol, quantity, (error, response) => {
 			if(error) {
-				onError(error);
+				onError(error.body);
 			} else if(response) {
 				// Sample response
 				// {
