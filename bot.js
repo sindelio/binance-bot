@@ -42,9 +42,9 @@ function add_candle(candles, latest_candle) {
 }
 
 // Start spot trading
-async function start_spot_trade(symbol, interval, filters={}) {
-	console.log("Fetching candles for symbol", symbol, "and interval", interval, "\n");
-	console.log("Tick round :", TICK_ROUND, "\n");
+async function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
+	logger.info("Fetching candles for symbol %s and interval %s", symbol, interval);
+	logger.info("Tick round %d", tick_round);
 
 	const candles = await binance_api.fetch_candles(symbol, interval);
 
@@ -62,23 +62,20 @@ async function start_spot_trade(symbol, interval, filters={}) {
 			tick_count += 1;
 			tick_sum += current_price;
 
-			if(current_state == bot_state.SEARCHING && tick_count == TICK_ROUND) {
+			if(current_state == bot_state.SEARCHING && tick_count == tick_round) {
 				// Search for opportunity when average is calculated
 				const tick_average = tick_sum / tick_count;
 
 				const open_prices = candles.open_prices.concat(open).slice(1);
 				const close_prices = candles.close_prices.concat(tick_average).slice(1);
 				
-				const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit);
+				const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit, logger);
 
 				if(signal) {			
 					// Buy from market
 					const calculation_result = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
 					
 					if(calculation_result?.price && calculation_result?.quantity) {
-						const time = new Date(event_time);
-						console.log("Time :", time.toString(), "\n");
-
 						binance_api.spot_market_buy(COIN_PAIR, calculation_result.price, calculation_result.quantity, SESSION_TYPE == session_type.TEST, 
 							(price, quantity) => {
 								// onSuccess
@@ -87,7 +84,7 @@ async function start_spot_trade(symbol, interval, filters={}) {
 									quantity: quantity
 								};
 
-								console.log("Bought", symbol, "-> price :", buy_info.price, "and quantity :", buy_info.quantity, "\n");
+								logger.info("Market buy from price : %f and quantity : %f", buy_info.price, buy_info.quantity);
 
 								// Reset variables before state transition
 								track_info = null;
@@ -95,7 +92,7 @@ async function start_spot_trade(symbol, interval, filters={}) {
 							}, 
 							(error) => {
 								// onError
-								console.error("Error occured during market buy :", error);
+								logger.error("Error occured during market buy : %s", error);
 							}
 						);
 					}		
@@ -107,9 +104,6 @@ async function start_spot_trade(symbol, interval, filters={}) {
 				const quantity = buy_info?.quantity || 0 ;
 				
 				if(current_price >= higher_price_limit || current_price <= lower_price_limit) {
-					const time = new Date(event_time);
-					console.log("Time :", time.toString(), "\n");
-
 					binance_api.spot_market_sell(COIN_PAIR, current_price, quantity, SESSION_TYPE == session_type.TEST,
 						(price, quantity) => {
 							// onSuccess
@@ -117,14 +111,14 @@ async function start_spot_trade(symbol, interval, filters={}) {
 								sell_price : price,
 								sell_quantity : quantity 
 							};
-	
-							console.log("Sold", symbol, "-> price :", track_info.sell_price, "and quantity :", track_info.sell_quantity, "\n");
+							
+							logger.info("Market sell from price : %f and quantity : %f", track_info.sell_price, track_info.sell_quantity);
 							
 							const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
-							console.log("Profit is :", profit, "\n");
+							logger.info("Profit : %f", profit);
 	
 							total_profit += profit;
-							console.log("Total profit is :", total_profit, "\n");
+							logger.info("Total profit : %f", total_profit);
 							
 							// Reset variables before state transition
 							buy_info = null;
@@ -133,40 +127,39 @@ async function start_spot_trade(symbol, interval, filters={}) {
 						},
 						(error) => {
 							// onError
-							console.error("Error occured during market sell :", error);
+							logger.error("Error occured during market sell : %s", error);
 						}
 					);
 				}
 			}
 
 			if(isFinal) add_candle(candles, {open, close, event_time});
-			if(tick_count == TICK_ROUND) tick_sum = tick_count = 0;
+			if(tick_count == tick_round) tick_sum = tick_count = 0;
 		}
 	);
 };
 
 // Start future trading
-async function start_future_trade(symbol, interval, filters={}) {
-	console.log("Future trading is not implemented!\n");
+async function start_future_trade(symbol, interval, tick_round, filters={}, logger) {
+	logger.warn("Future trading is not implemented");
 };
 
 async function main() {
-	const logger = log_util.create_logger("logs", COIN_PAIR + TICK_ROUND);
+	const log_category = COIN_PAIR + "-" + TICK_ROUND;
+	const logger = log_util.add_logger(log_category);
 
-	logger.info({label: "Initialization", message : "Authenticating..."});
+	logger.info("Authenticating to server...");
 	binance_api.authenticate(SESSION_TYPE == session_type.TEST);
 
-	logger.info({label: "Initialization", message : "Fetching exchange info..."});
+	logger.info("Fetching exchange info...");
 	const minimums = await binance_api.fetch_exchange_info();
-	
-	const log_label = COIN_PAIR + "-" + CANDLE_INTERVAL + "-" + TICK_ROUND;
 
 	if(TRADE_TYPE == trade_type.SPOT) {
-		logger.info({label: log_label, message : "Starting the spot trade bot..."});
-		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR], log_label);
+		logger.info("Starting the spot trade bot...");
+		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, minimums[COIN_PAIR], logger);
 	} else if(TRADE_TYPE == trade_type.FUTURE) {
-		logger.info({label: log_label, message : "Starting the future trade bot..."});
-		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR], log_label);
+		logger.info("Starting the future trade bot...");
+		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, minimums[COIN_PAIR], logger);
 	}
 }
 
