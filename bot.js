@@ -23,11 +23,11 @@ const TRADE_TYPE = trade_type.SPOT;
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.TEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
 
-const COIN_PAIR = process.argv[2]?.toString() || "BANDUSDT";
-const CANDLE_INTERVAL = process.argv[3]?.toString() || "15m";
-const TICK_ROUND = parseInt(process.argv[4]) || 30;
+const COIN_PAIR = "BANDUSDT";
+const CANDLE_INTERVAL = "15m";
+const TICK_ROUND = parseInt(process.argv[2]) || 30;
 
-const PROFIT_MULTIPLIER = 1.015;
+const PROFIT_MULTIPLIER = 1.01;
 const STOP_LOSS_MULTIPLIER = 0.99;
 
 // Add latest candle to the list
@@ -43,8 +43,7 @@ function add_candle(candles, latest_candle) {
 
 // Start spot trading
 async function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
-	logger.info("Fetching candles for symbol %s and interval %s", symbol, interval);
-	logger.info("Tick round %d", tick_round);
+	logger.info("Fetching candles for interval %s", interval);
 
 	const candles = await binance_api.fetch_candles(symbol, interval);
 
@@ -76,7 +75,7 @@ async function start_spot_trade(symbol, interval, tick_round, filters={}, logger
 					const calculation_result = await binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST)
 					
 					if(calculation_result?.price && calculation_result?.quantity) {
-						binance_api.spot_market_buy(COIN_PAIR, calculation_result.price, calculation_result.quantity, SESSION_TYPE == session_type.TEST, 
+						binance_api.spot_market_buy(symbol, calculation_result.price, calculation_result.quantity, SESSION_TYPE == session_type.TEST, 
 							(price, quantity) => {
 								// onSuccess
 								buy_info = {
@@ -103,8 +102,17 @@ async function start_spot_trade(symbol, interval, tick_round, filters={}, logger
 				const higher_price_limit = track_info?.higher_price_limit || (buy_info?.price || current_price) * PROFIT_MULTIPLIER;
 				const quantity = buy_info?.quantity || 0 ;
 				
-				if(current_price >= higher_price_limit || current_price <= lower_price_limit) {
-					binance_api.spot_market_sell(COIN_PAIR, current_price, quantity, SESSION_TYPE == session_type.TEST,
+				if(current_price >= higher_price_limit) {
+					track_info = { 
+						lower_price_limit : higher_price_limit,
+						higher_price_limit : higher_price_limit * (1 + ((PROFIT_MULTIPLIER - 1) * 0.5))
+					};
+
+					logger.info("Changed lower limit to %f", track_info.lower_price_limit);
+					logger.info("Changed higher limit to %f", track_info.higher_price_limit);
+				}
+				else if(current_price <= lower_price_limit) {
+					binance_api.spot_market_sell(symbol, current_price, quantity, SESSION_TYPE == session_type.TEST,
 						(price, quantity) => {
 							// onSuccess
 							track_info = { 
@@ -145,21 +153,25 @@ async function start_future_trade(symbol, interval, tick_round, filters={}, logg
 };
 
 async function main() {
-	const log_category = COIN_PAIR + "-" + TICK_ROUND;
-	const logger = log_util.add_logger(log_category);
+	const coin_pairs = ["BANDUSDT", "CAKEUSDT", "MATICUSDT", "LTCUSDT"];
 
-	logger.info("Authenticating to server...");
+	log_util.global_logger.info("Authenticating to server...");
 	binance_api.authenticate(SESSION_TYPE == session_type.TEST);
 
-	logger.info("Fetching exchange info...");
+	log_util.global_logger.info("Fetching exchange info...");
 	const minimums = await binance_api.fetch_exchange_info();
 
-	if(TRADE_TYPE == trade_type.SPOT) {
-		logger.info("Starting the spot trade bot...");
-		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, minimums[COIN_PAIR], logger);
-	} else if(TRADE_TYPE == trade_type.FUTURE) {
-		logger.info("Starting the future trade bot...");
-		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, minimums[COIN_PAIR], logger);
+	for (pair of coin_pairs) {
+		const log_cat = pair + "-" + TICK_ROUND;
+		log_util.global_logger.info("Starting the bot for %s", log_cat);
+
+		const pair_logger = log_util.add_logger(log_cat);
+
+		if(TRADE_TYPE == trade_type.SPOT) {
+			start_spot_trade(pair, CANDLE_INTERVAL, TICK_ROUND, minimums[pair], pair_logger);
+		} else if(TRADE_TYPE == trade_type.FUTURE) {
+			start_future_trade(pair, CANDLE_INTERVAL, TICK_ROUND, minimums[pair], pair_logger);
+		}
 	}
 }
 
