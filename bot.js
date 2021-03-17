@@ -151,17 +151,23 @@ async function start_future_trade(symbol, interval, filters={}) {
 };
 
 async function main() {
-	console.log("Authenticating...")
-	binance_api.authenticate(SESSION_TYPE == session_type.TEST);
-	console.log("Fetching exchange info...")
-	const minimums = await binance_api.fetch_exchange_info();
+	const logger = log_util.create_logger("logs", COIN_PAIR + TICK_ROUND);
 
-	console.log("Starting...")
+	logger.info({label: "Initialization", message : "Authenticating..."});
+	binance_api.authenticate(SESSION_TYPE == session_type.TEST);
+
+	logger.info({label: "Initialization", message : "Fetching exchange info..."});
+	const minimums = await binance_api.fetch_exchange_info();
+	
+	const log_label = COIN_PAIR + "-" + CANDLE_INTERVAL + "-" + TICK_ROUND;
+
 	if(TRADE_TYPE == trade_type.SPOT) {
-		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR]);
+		logger.info({label: log_label, message : "Starting the spot trade bot..."});
+		start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR], log_label);
 	} else if(TRADE_TYPE == trade_type.FUTURE) {
-		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR]);
-	}	
+		logger.info({label: log_label, message : "Starting the future trade bot..."});
+		start_future_trade(COIN_PAIR, CANDLE_INTERVAL, minimums[COIN_PAIR], log_label);
+	}
 }
 
 main();

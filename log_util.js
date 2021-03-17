@@ -1,18 +1,23 @@
 const winston = require('winston');
 
-const create_logger = (log_directory=".", filename_prefix="") => {
+const { combine, timestamp, errors, splat, json, prettyPrint, simple, label, printf } = winston.format;
+
+const custom_log_format = printf(({ level, message, label="", timestamp }) => {
+    return `[${timestamp}] - [${label}] - [${level.toUpperCase()}] : ${message}`;
+});
+
+const create_logger = (log_directory="./logs", filename_prefix="") => {
     const logger = winston.createLogger({
-        level: 'info',
-        format: winston.format.combine(
-            winston.format.timestamp( {format: "MM-DD HH:mm:ss"}),
-            winston.format.errors({ stack: true }),
-            winston.format.splat(),
-            winston.format.json(),
-            winston.format.prettyPrint()
+        format: combine(
+            timestamp( {format: "MM-DD HH:mm:ss"}),
+            errors({ stack: true }),
+            splat(),
+            json(),
+            prettyPrint(),
+            custom_log_format,
         ),
         transports: [
-            new winston.transports.File({ dirname: log_directory, filename: filename_prefix + "_error.log", level: "error" }),
-            new winston.transports.File({ dirname: log_directory, filename: filename_prefix + "_info.log" }) 
+            new winston.transports.File({ dirname: log_directory, filename: filename_prefix + ".log" }) 
         ]
     });
 
