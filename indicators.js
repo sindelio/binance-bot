@@ -16,11 +16,11 @@ const ema_scalper = (open_prices, close_prices, price_digit=4, logger) => {
 					(curr_ema13 > curr_ema21) && (prev_ema13 <= prev_ema21) && (prev_ema6 >= prev_ema12);
 
 	if(signal) {
-		logger.info("current ema21 : %f", curr_ema21, "current ema13 : %f", curr_ema13);
-		logger.info("previous ema21 : %f", prev_ema21, "previous ema13 : %f", prev_ema13);
+		logger.info("current ema21 : %f and current ema13 : %f", curr_ema21, curr_ema13);
+		logger.info("previous ema21 : %f and previous ema13 : %f", prev_ema21, prev_ema13);
 		
-		logger.info("current ema12 : %f", curr_ema12, "current ema6 : %f", curr_ema6);
-		logger.info("previous ema12 : %f", prev_ema12, "previous ema6 : %f", prev_ema6);
+		logger.info("current ema12 : %f and current ema6 : %f", curr_ema12, curr_ema6);
+		logger.info("previous ema12 : %f and previous ema6 : %f", prev_ema12, prev_ema6);
 	}
 	
 	return signal;
