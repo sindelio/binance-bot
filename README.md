@@ -25,7 +25,7 @@ The bot depends on the following Node modules:
 - "binance-api-node": "^0.8.10",
 - "node-binance-api": "^0.12.5",
 - "technicalindicators": "^2.0.5",
-- "ttab": "^0.7.0"
+- "winston": "^3.3.3"
 
 # Setup
 
@@ -46,7 +46,7 @@ Then move into the cloned directory:
 Install the module dependencies:
 
 ```
-$ npm i
+$ npm install
 ```
 
 # Running
@@ -54,7 +54,7 @@ $ npm i
 Inside the project root directory (/binance_bot):
 
 ```
-$ node botjs <coin-pair> <candle-interval>
+$ node bot.js
 ```
 
 # Contributions
