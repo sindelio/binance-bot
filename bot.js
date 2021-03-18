@@ -20,7 +20,7 @@ const session_type = {
 const SESSION_TYPE = session_type.TEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const LOG_DIR = "logs/new_and_old_scalper_combined";
+const LOG_DIR = "logs/new_or_old_scalper_combined";
 
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.TEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
