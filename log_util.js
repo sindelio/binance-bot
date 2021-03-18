@@ -9,7 +9,7 @@ const custom_log_format = printf(({label="", timestamp, level, message}) => {
 const global_logger = winston.createLogger({
     format: combine(
         timestamp( {format: "HH:mm:ss"}),
-        label({ label: "BINANCE" }),
+        label({ label: "BINANCE BOT" }),
         errors({ stack: true }),
         splat(),
         prettyPrint(),
@@ -18,6 +18,10 @@ const global_logger = winston.createLogger({
     transports: [
         new winston.transports.Console(),
     ],
+    exceptionHandlers : [
+        new winston.transports.Console(),
+    ],
+    exitOnError : false
 });
 
 const add_logger = (category, log_directory="./logs") => {

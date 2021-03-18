@@ -44,24 +44,22 @@ function add_candle(candles, latest_candle) {
 // Start spot trading
 async function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
 	logger.info("Fetching candles for interval %s", interval);
-
+	
 	const candles = await binance_api.fetch_candles(symbol, interval);
 
 	let current_state = bot_state.SEARCHING;
-	let total_profit = 0;
-	let buy_info = null;
-	let track_info = null;
-	
-	let tick_sum = 0;
-	let tick_count = 0;
 
+	let buy_info = track_info = null;	
+	let total_profit = tick_sum = tick_count = 0;
+
+	logger.info("Subscribing to candles websocket for pair %s", symbol);
 	binance_api.ws_candles(symbol, interval, async (open, close, event_time, isFinal) => {
 			const current_price = Number.parseFloat(close);
 
 			tick_count += 1;
 			tick_sum += current_price;
 
-			if(current_state == bot_state.SEARCHING && tick_count == tick_round) {
+			if(current_state == bot_state.SEARCHING && tick_count >= tick_round) {
 				// Search for opportunity when average is calculated
 				const tick_average = tick_sum / tick_count;
 
@@ -104,7 +102,7 @@ async function start_spot_trade(symbol, interval, tick_round, filters={}, logger
 				
 				if(current_price >= higher_price_limit) {
 					track_info = { 
-						lower_price_limit : higher_price_limit,
+						lower_price_limit : higher_price_limit * (1 - (1 - STOP_LOSS_MULTIPLIER) * 0.5),
 						higher_price_limit : higher_price_limit * (1 + ((PROFIT_MULTIPLIER - 1) * 0.5))
 					};
 
@@ -142,7 +140,7 @@ async function start_spot_trade(symbol, interval, tick_round, filters={}, logger
 			}
 
 			if(isFinal) add_candle(candles, {open, close, event_time});
-			if(tick_count == tick_round) tick_sum = tick_count = 0;
+			if(isFinal || tick_count >= tick_round) tick_sum = tick_count = 0;
 		}
 	);
 };
