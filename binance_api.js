@@ -50,7 +50,7 @@ const fetch_exchange_info = () => {
 }
 
 // Adjust the candles format for the indicators
-const fetch_candles = (symbol, interval) => {
+const fetch_candles = (symbol, interval, options={}) => {
 	return new Promise((resolve, reject) => {
 		binance_client.candlesticks(symbol, interval, (error, candles, symbol) => {
 			if (error) {
@@ -78,7 +78,7 @@ const fetch_candles = (symbol, interval) => {
 
 				return resolve(new_candles);
 			}
-		});
+		}, options);
 	});
 }
 
