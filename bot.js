@@ -20,7 +20,7 @@ const session_type = {
 const SESSION_TYPE = session_type.TEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const LOG_DIR = "logs/new_or_old_scalper";
+const LOG_DIR = "logs/new_and_old_scalper_combined";
 
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.TEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
@@ -29,7 +29,7 @@ const COIN_PAIR = process.argv[2] || "BANDUSDT";
 const TICK_ROUND = parseInt(process.argv[3]) || 30;
 const CANDLE_INTERVAL = "15m";
 
-const PROFIT_MULTIPLIER = 1.01;
+const PROFIT_MULTIPLIER = 1.015;
 const STOP_LOSS_MULTIPLIER = 0.99;
 
 // Add latest candle to the list
