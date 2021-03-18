@@ -1,2 +1,4 @@
-ttab node bot.js 25
-ttab node bot.js 30
+for pair in BANDUSDT CAKEUSDT MATICUSDT LTCUSDT;
+do
+    ttab node bot.js ${pair}
+done;

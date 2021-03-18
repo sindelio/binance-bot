@@ -14,14 +14,11 @@ const authenticate = (test=true) => {
 	}
 }
 
-const fetch_exchange_info = async () => {
-	// This function is based on https://github.com/jsappme/node-binance-trader/blob/master/src/trader.js
-
+const fetch_exchange_info = () => {
 	return new Promise((resolve, reject) => {
 		binance_client.exchangeInfo((error, response) => {
 			if (error) {
-				console.error(error.body);
-				return reject(error);
+				return reject("Error occured fetching exchange info " + error.body);
 			} else {
 				let minimums = {};
 
@@ -45,21 +42,19 @@ const fetch_exchange_info = async () => {
 					filters.icebergAllowed = obj.icebergAllowed;
 					minimums[obj.symbol] = filters;
 				}
-		
+
 				return resolve(minimums);
 			}
-			
 		})
 	});
 }
 
 // Adjust the candles format for the indicators
-const fetch_candles = async (symbol, interval) => {
+const fetch_candles = (symbol, interval) => {
 	return new Promise((resolve, reject) => {
 		binance_client.candlesticks(symbol, interval, (error, candles, symbol) => {
 			if (error) {
-				console.error(error.body);
-				return reject(error);
+				return reject("Error occured fetching candles " + error.body);
 			} else {
 				const new_candles = {
 					open_prices : [],
@@ -106,8 +101,7 @@ const get_price = (symbol) => {
 	return new Promise((resolve, reject) => {
 		binance_client.prices(symbol, (error, prices) => {
 			if (error) {
-				console.error(error.body);
-				return reject(error);
+				return reject(error.body);
 			} else {
 				const result = parseFloat(prices[symbol]);
 				return resolve(result);
@@ -120,8 +114,7 @@ const get_available_balance = (currency="USDT") => {
 	return new Promise((resolve, reject) => {
 		binance_client.balance((error, balances) => {
 			if (error) {
-				console.error(error.body);
-				return reject(error);
+				return reject(error.body);
 			} else {
 				const result = parseFloat(balances[currency].available);
 				return resolve(result);
@@ -131,11 +124,7 @@ const get_available_balance = (currency="USDT") => {
 }
 
 // Calculates how much of the asset(coin) the user's balance can buy within the balance limit.
-const calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_limit=15, filters={}, test=true) => {
-	function clamp(number, min, max) {
-		return Math.max(min, Math.min(number, max));
-	}
-
+const calculate_buy_quantity = (symbol, trading_currency="USDT", balance_limit=15, filters={}, test=true) => {
 	// ****** FILTERS *******
 	// 	status: 'TRADING',
 	// 	min_price: 0.01,
@@ -155,28 +144,55 @@ const calculate_buy_quantity = async (symbol, trading_currency="USDT", balance_l
 	// 	icebergAllowed: true
 	// }
 
-	let buying_balance = balance_limit;
-
-	if(!test) {
-		const available_balance = await get_available_balance(trading_currency);
-		buying_balance = clamp(available_balance, 0, balance_limit);
+	const clamp = (number, min, max) => {
+		const tmp_min = min ? min : number;
+		const tmp_max = max ? max : number;
+		return Math.max(tmp_min, Math.min(number, tmp_max));
 	}
-	
-	if(buying_balance >= filters.min_notional) {
-		let coin_price = await get_price(symbol);
-		coin_price = clamp(coin_price, filters.min_price, filters.max_price);
-	
-		let quantity = buying_balance / coin_price;
-		quantity = clamp(quantity, filters.min_quantity, filters.max_quantity);
-		
-		return {
-			price : parseFloat(coin_price.toFixed(filters.price_digit)),
-			quantity : parseFloat(quantity.toFixed(filters.quantity_digit))
+
+	return new Promise((resolve, reject) => {
+		let buying_balance = balance_limit;
+
+		if(!test) {
+			get_available_balance(trading_currency).then(
+				(value) => {
+					buying_balance = clamp(value, 0, balance_limit);
+				},
+				(error) => {
+					return reject("Error occured fetching the available balance " + error);
+				}
+			).catch((error) => {
+				return reject("Error occured fetching the available balance " + error);
+			});
 		}
-	} else {
-		console.error(buying_balance, trading_currency, "is below to minimum balance to purchase !")
-		return null;
-	}	
+		
+		const min_balance = filters?.min_notional ? filters.min_notional : 0;
+		if(buying_balance >= min_balance) {
+			get_price(symbol).then(
+				(value) => {
+					const coin_price = clamp(value, filters.min_price, filters.max_price);
+		
+					let quantity = buying_balance / coin_price;
+					quantity = clamp(quantity, filters.min_quantity, filters.max_quantity);
+					
+					const price_digit = filters?.price_digit ? filters.price_digit : 4 ;
+					const quantity_digit = filters?.quantity_digit ? filters.quantity_digit : 4 ;
+
+					return resolve({
+						price : parseFloat(coin_price.toFixed(price_digit)),
+						quantity : parseFloat(quantity.toFixed(quantity_digit))
+					});
+				}, 
+				(error) => {
+					return reject("Error occured fetching the price of" + symbol + " : " + error);
+				}
+			).catch((error) => {
+				return reject("Error occured fetching the price of" + symbol + " : " + error);
+			});
+		} else {
+			return reject(buying_balance + " " + trading_currency + " " + "is below to minimum balance to purchase");
+		}
+	});	
 }
 
 // Spot market buy
