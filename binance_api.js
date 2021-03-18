@@ -3,15 +3,13 @@ const Binance = require('node-binance-api');
 
 let binance_client = new Binance();
 
-const authenticate = (test=true) => {
-	if(!test) {
-		const BINANCE_API_KEY = require("./binance_secrets.json");
+const authenticate_user = () => {
+	const BINANCE_API_KEY = require("./binance_secrets.json");
 
-		binance_client.setOptions({
-			APIKEY: BINANCE_API_KEY.api_key,
-			APISECRET: BINANCE_API_KEY.api_secret
-		});
-	}
+	binance_client.setOptions({
+		APIKEY: BINANCE_API_KEY.api_key,
+		APISECRET: BINANCE_API_KEY.api_secret
+	});
 }
 
 const fetch_exchange_info = () => {
@@ -59,7 +57,7 @@ const fetch_candles = (symbol, interval, options={}) => {
 				const new_candles = {
 					open_prices : [],
 					close_prices : [],
-					times : []
+					open_times : []
 				}
 				
 				const current_time = Date.now();
@@ -73,7 +71,7 @@ const fetch_candles = (symbol, interval, options={}) => {
 					
 					new_candles.open_prices[i] = Number(open);
 					new_candles.close_prices[i] = Number(close);
-					new_candles.times[i] = close_time;
+					new_candles.open_times[i] = open_time;
 				}
 
 				return resolve(new_candles);
@@ -285,7 +283,7 @@ const spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onError
 	}
 }
 
-exports.authenticate = authenticate;
+exports.authenticate_user = authenticate_user;
 exports.fetch_exchange_info = fetch_exchange_info;
 exports.fetch_candles = fetch_candles;
 exports.ws_candles = ws_candles;

@@ -2,8 +2,12 @@ const winston = require('winston');
 
 const { combine, timestamp, errors, splat, json, prettyPrint, simple, label, printf, colorize} = winston.format;
 
-const custom_log_format = printf(({label="", timestamp, level, message}) => {
+const custom_log_format = printf(({label, timestamp, level, message}) => {
     return `[${timestamp}] - [${label}] - [${level.toUpperCase()}] : ${message}`;
+});
+
+const test_log_format = printf(({label, message}) => {
+    return `[${label}] : ${message}`;
 });
 
 const global_logger = winston.createLogger({
@@ -17,6 +21,22 @@ const global_logger = winston.createLogger({
     ),
     transports: [
         new winston.transports.Console(),
+    ],
+    exceptionHandlers : [
+        new winston.transports.Console(),
+    ],
+    exitOnError : false
+});
+
+const test_logger = (symbol, log_directory="logs/test")  => winston.createLogger({
+    format: combine(
+        label({ label: "TEST" }),
+        splat(),
+        prettyPrint(),
+        test_log_format
+    ),
+    transports: [
+        new winston.transports.File({ dirname: log_directory, filename: symbol + ".log" }) 
     ],
     exceptionHandlers : [
         new winston.transports.Console(),
@@ -38,11 +58,16 @@ const add_logger = (category, log_directory="./logs") => {
         transports: [
             new winston.transports.File({ dirname: log_directory, filename: category + ".log" }) 
         ],
+        exceptionHandlers : [
+            new winston.transports.Console(),
+        ],
+        exitOnError : false
     });
 }
 
 const get_logger = (category) => winston.loggers.get(category);
 
 exports.global_logger = global_logger;
+exports.test_logger = test_logger;
 exports.add_logger = add_logger;
 exports.get_logger = get_logger;

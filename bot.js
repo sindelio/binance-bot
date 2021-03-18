@@ -36,11 +36,11 @@ const STOP_LOSS_MULTIPLIER = 0.99;
 function add_candle(candles, latest_candle) {
 	candles.open_prices.shift();
 	candles.close_prices.shift();
-	candles.times.shift();
+	candles.open_times.shift();
 	
 	candles.open_prices.push(Number(latest_candle.open));
 	candles.close_prices.push(Number(latest_candle.close));
-	candles.times.push(latest_candle.event_time);
+	candles.open_times.push(latest_candle.event_time);
 }
 
 // Start spot trading
@@ -71,7 +71,7 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
 						const close_prices = candles.close_prices.concat(tick_average).slice(1);					
 						
 						
-						const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit, logger);
+						const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit, logger.info);
 						
 						if(signal) {
 							// Buy from market
@@ -166,10 +166,12 @@ function start_future_trade(symbol, interval, tick_round, filters={}, logger) {
 };
 
 function run() {
-	log_util.global_logger.info("Authenticating to server...");
-	binance_api.authenticate(SESSION_TYPE == session_type.TEST);
-
-	log_util.global_logger.info("Fetching exchange info...");
+	if(SESSION_TYPE == session_type.TRADE) {
+		log_util.global_logger.info("Authenticating to Binance...");
+		binance_api.authenticate_user();
+	}
+	
+	log_util.global_logger.info("Fetching exchange info from Binance...");
 	binance_api.fetch_exchange_info().then(
 		(filters) => {
 			log_util.global_logger.info("Starting the bot for %s", COIN_PAIR);
@@ -190,4 +192,38 @@ function run() {
 	});
 }
 
+function test(){
+	const test_logger = log_util.test_logger(COIN_PAIR, "logs/test");
+	
+	binance_api.fetch_exchange_info().then(
+		(filters) => {
+			binance_api.fetch_candles(COIN_PAIR, CANDLE_INTERVAL).then(
+				(candles) => {
+					for(let i = 1; i < candles.open_prices.length; ++i) {
+						const open_prices = candles.open_prices.slice(0, i + 1);
+						const close_prices = candles.close_prices.slice(0, i + 1);
+		
+						const signal = indicators.ema_scalper(open_prices, close_prices, filters[COIN_PAIR].price_digit, () => {});
+						if(signal) {
+							const candle_open_time = new Date(candles.open_times[i]);
+							test_logger.info("Found buy signal at : %s", candle_open_time.toLocaleString());
+						}
+					}
+				},
+				(error) => {
+					log_util.global_logger.error(error);
+			}).catch((error) => {
+				log_util.global_logger.error(error);
+			});
+		},
+		(error) => {
+			log_util.global_logger.error(error);
+		}
+	).catch((error) => {
+		log_util.global_logger.error(error);
+	});
+	
+}
+
 run();
+//test();
