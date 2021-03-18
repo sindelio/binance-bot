@@ -160,10 +160,9 @@ async function main() {
 	const minimums = await binance_api.fetch_exchange_info();
 
 	for (pair of coin_pairs) {
-		const log_cat = pair + "-" + TICK_ROUND;
-		log_util.global_logger.info("Starting the bot for %s", log_cat);
+		log_util.global_logger.info("Starting the bot for %s", pair);
 
-		const pair_logger = log_util.add_logger(log_cat);
+		const pair_logger = log_util.add_logger(pair);
 
 		if(TRADE_TYPE == trade_type.SPOT) {
 			start_spot_trade(pair, CANDLE_INTERVAL, TICK_ROUND, minimums[pair], pair_logger);
