@@ -1,6 +1,6 @@
 const binance_api = require('./binance_api');
 const indicators = require('./indicators')
-const { test_logger } = require('./log_util')
+const { test_logger } = require('./logger')
 
 const precise = (x) => parseFloat(x.toFixed(4));
 

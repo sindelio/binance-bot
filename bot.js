@@ -1,7 +1,7 @@
 const { backtest } = require('./backtest');
 const binance_api = require('./binance_api');
 const indicators = require('./indicators')
-const { global_logger, add_logger, get_logger } = require('./log_util')
+const { global_logger, add_logger, get_logger } = require('./logger')
 
 const bot_state = {
 	SEARCHING : "searching",
