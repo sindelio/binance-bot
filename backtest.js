@@ -11,14 +11,24 @@ const calculate_profit = (symbol, buying_time, profit_multiplier, stop_loss_mult
 				const buying_price = candles.close_prices[0];
 
 				let i = 0;
-				while(++i < Math.min(candles.high_prices.length, candles.low_prices.length)) {					
+				const size = Math.min(candles.high_prices.length, candles.low_prices.length);
+				while(++i < size) {			
 					const isProfit = candles.high_prices[i] >= buying_price * profit_multiplier;
 					const isLoss = candles.low_prices[i] <= buying_price * stop_loss_multipler;
 
-					if(isProfit && isLoss) return resolve(precise((profit_multiplier + stop_loss_multipler) * 0.5 - 1));
-					else if(isProfit) return resolve(precise(profit_multiplier - 1));
-					else if(isLoss) return resolve(precise(stop_loss_multipler - 1));
+					if(isProfit && isLoss) {
+						const profit = precise((profit_multiplier + stop_loss_multipler) * 0.5 - 1);
+						return resolve(profit);
+					} else if(isProfit) {
+						const profit = precise((profit_multiplier - 1));
+						return resolve(profit);
+					} else if(isLoss) {
+						const profit = precise((stop_loss_multipler - 1));
+						return resolve(profit);
+					}
 				}
+				
+				return resolve(0);
 			},
 			(error) => {
 				return reject(error);
@@ -53,18 +63,11 @@ const backtest = (symbol, interval, profit_multiplier, stop_loss_multipler) => {
 
 							signal_count += 1;
 							
-							await calculate_profit(symbol, buying_time, profit_multiplier, stop_loss_multipler).then(
-								(profit) => {
-									logger.info("Profit : % %f at %s", 100 * profit, new Date(buying_time).toLocaleString());
-									total_profit += profit;
-								},
-								(error) => {
-									logger.error(error);
-								}
-							).catch((error) => {
-								logger.error(error);
-							});
-					
+							const profit = await calculate_profit(symbol, buying_time, profit_multiplier, stop_loss_multipler);
+
+							logger.info("Profit : % %f at %s", 100 * profit, new Date(buying_time).toLocaleString());
+							total_profit += profit;
+
 							const current_close_price = candles.close_prices[i];
 							const current_open_price = candles.open_prices[i];
 

@@ -19,7 +19,7 @@ const session_type = {
 	TRADE: "trade",
 }
 
-const SESSION_TYPE = session_type.BACKTEST;
+const SESSION_TYPE = session_type.LIVETEST;
 const TRADE_TYPE = trade_type.SPOT;
 
 const LOG_DIR = "logs/new_or_old_scalper_combined";
@@ -28,7 +28,7 @@ const BALANCE_LIMIT = (SESSION_TYPE == session_type.LIVETEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
 
 const COIN_PAIR = process.argv[2] || "BANDUSDT";
-const TICK_ROUND = parseInt(process.argv[3]) || 30;
+const TICK_ROUND = 30;
 const CANDLE_INTERVAL = "15m";
 
 const PROFIT_MULTIPLIER = 1.015;
@@ -114,17 +114,8 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 						const lower_price_limit = track_info?.lower_price_limit || (buy_info?.price || current_price) * STOP_LOSS_MULTIPLIER; 
 						const higher_price_limit = track_info?.higher_price_limit || (buy_info?.price || current_price) * PROFIT_MULTIPLIER;
 						const quantity = buy_info?.quantity || 0 ;
-						
-						if(current_price >= higher_price_limit) {
-							track_info = { 
-								lower_price_limit : higher_price_limit * (1 - (1 - STOP_LOSS_MULTIPLIER) * 0.5),
-								higher_price_limit : higher_price_limit * (1 + ((PROFIT_MULTIPLIER - 1) * 0.5))
-							};
-		
-							logger.info("Changed lower limit to %f", track_info.lower_price_limit);
-							logger.info("Changed higher limit to %f", track_info.higher_price_limit);
-						}
-						else if(current_price <= lower_price_limit) {
+
+						if(current_price <= lower_price_limit || current_price >= higher_price_limit) {
 							binance_api.spot_market_sell(symbol, current_price, quantity, test,
 								(price, quantity) => {
 									// onSuccess
