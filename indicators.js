@@ -3,7 +3,7 @@ const { EMA } = require('technicalindicators');
 const LONG_EMA_SUPPORT_MULTIPLIER = 0;
 
 // Calculate ema1 and ema2
-const ema_scalper = (open_prices, close_prices, price_digit=4, onLog) => {
+const ema_scalper = (open_prices, close_prices, price_digit=4, onLog=()=>{}) => {
 	const precise = (x) => parseFloat(x.toFixed(price_digit));
 
 	// Earlier scalper

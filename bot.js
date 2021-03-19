@@ -19,10 +19,10 @@ const session_type = {
 	TRADE: "trade",
 }
 
-const SESSION_TYPE = session_type.LIVETEST;
+const SESSION_TYPE = session_type.BACKTEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const LOG_DIR = "logs/new_or_old_scalper_combined";
+const LOG_DIR = "logs/15_percent_with_ema_support";
 
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.LIVETEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
@@ -41,12 +41,14 @@ function add_candle(candles, latest_candle) {
 	candles.low_prices.shift();
 	candles.high_prices.shift();
 	candles.open_times.shift();
+	candles.close_times.shift();
 	
 	candles.open_prices.push(Number(latest_candle.open));
 	candles.close_prices.push(Number(latest_candle.close));
 	candles.low_prices.push(Number(latest_candle.low));
 	candles.high_prices.push(Number(latest_candle.high));
-	candles.open_times.push(latest_candle.event_time);
+	candles.open_times.push(candles.close_times[candles.close_times.length - 1] + 1);
+	candles.close_times.push(latest_candle.event_time);
 }
 
 // Start spot trading
@@ -75,7 +77,6 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 		
 						const open_prices = candles.open_prices.concat(open).slice(1);
 						const close_prices = candles.close_prices.concat(tick_average).slice(1);					
-						
 						
 						const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit, logger.info);
 						

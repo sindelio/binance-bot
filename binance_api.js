@@ -16,7 +16,7 @@ const fetch_exchange_info = () => {
 	return new Promise((resolve, reject) => {
 		binance_client.exchangeInfo((error, response) => {
 			if (error) {
-				return reject("Error occured fetching exchange info " + error.body);
+				return reject("Error occured fetching exchange info " + error);
 			} else {
 				let minimums = {};
 
@@ -59,7 +59,8 @@ const fetch_candles = (symbol, interval, options={}) => {
 					close_prices : [],
 					low_prices : [],
 					high_prices : [],
-					open_times : []
+					open_times : [],
+					close_times : [],
 				}
 				
 				const current_time = Date.now();
@@ -76,6 +77,7 @@ const fetch_candles = (symbol, interval, options={}) => {
 					new_candles.low_prices[i] = Number(low);
 					new_candles.high_prices[i] = Number(high);
 					new_candles.open_times[i] = open_time;
+					new_candles.close_times[i] = close_time;
 				}
 
 				return resolve(new_candles);
