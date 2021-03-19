@@ -28,15 +28,15 @@ const global_logger = winston.createLogger({
     exitOnError : false
 });
 
-const test_logger = (symbol, log_directory="logs/test")  => winston.createLogger({
+const test_logger = (symbol)  => winston.createLogger({
     format: combine(
-        label({ label: "TEST" }),
+        label({ label: "TEST " + symbol }),
         splat(),
         prettyPrint(),
         test_log_format
     ),
     transports: [
-        new winston.transports.File({ dirname: log_directory, filename: symbol + ".log" }) 
+        new winston.transports.Console(),
     ],
     exceptionHandlers : [
         new winston.transports.Console(),
