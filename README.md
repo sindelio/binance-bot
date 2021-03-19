@@ -14,6 +14,7 @@ The bot relies only in ema scalping indicator, so it's quite simple.
 Here are some points that deserve attention:
 
 - More consideration with the profit and stop-loss price calculations (multipliers and higher limit increase ratio)
+- Implement ema signals bases on "1m" interval candles for closing real-time experience
 
 # Dependencies
 
@@ -22,7 +23,6 @@ Here are some points that deserve attention:
 
 The bot depends on the following Node modules:
 
-- "binance-api-node": "^0.8.10",
 - "node-binance-api": "^0.12.5",
 - "technicalindicators": "^2.0.5",
 - "winston": "^3.3.3"
