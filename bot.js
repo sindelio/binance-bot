@@ -1,6 +1,7 @@
+const { backtest } = require('./backtest');
 const binance_api = require('./binance_api');
 const indicators = require('./indicators')
-const log_util = require('./log_util')
+const { global_logger, add_logger, get_logger } = require('./log_util')
 
 const bot_state = {
 	SEARCHING : "searching",
@@ -13,16 +14,17 @@ const trade_type = {
 }
 
 const session_type = {
-	TEST: "test",
+	BACKTEST: "backtest",
+	LIVETEST: "livetest",
 	TRADE: "trade",
 }
 
-const SESSION_TYPE = session_type.TEST;
+const SESSION_TYPE = session_type.BACKTEST;
 const TRADE_TYPE = trade_type.SPOT;
 
 const LOG_DIR = "logs/new_or_old_scalper_combined";
 
-const BALANCE_LIMIT = (SESSION_TYPE == session_type.TEST) ? 1000 : 15;
+const BALANCE_LIMIT = (SESSION_TYPE == session_type.LIVETEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
 
 const COIN_PAIR = process.argv[2] || "BANDUSDT";
@@ -36,15 +38,19 @@ const STOP_LOSS_MULTIPLIER = 0.99;
 function add_candle(candles, latest_candle) {
 	candles.open_prices.shift();
 	candles.close_prices.shift();
+	candles.low_prices.shift();
+	candles.high_prices.shift();
 	candles.open_times.shift();
 	
 	candles.open_prices.push(Number(latest_candle.open));
 	candles.close_prices.push(Number(latest_candle.close));
+	candles.low_prices.push(Number(latest_candle.low));
+	candles.high_prices.push(Number(latest_candle.high));
 	candles.open_times.push(latest_candle.event_time);
 }
 
 // Start spot trading
-function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
+function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test=true) {
 	logger.info("Fetching candles for interval %s", interval);
 	
 	binance_api.fetch_candles(symbol, interval).then(
@@ -75,9 +81,9 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
 						
 						if(signal) {
 							// Buy from market
-							binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, SESSION_TYPE == session_type.TEST).then(
+							binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, test).then(
 								({price, quantity}) => {
-									binance_api.spot_market_buy(symbol, price, quantity, SESSION_TYPE == session_type.TEST, 
+									binance_api.spot_market_buy(symbol, price, quantity, test, 
 										(price, quantity) => {
 											// onSuccess
 											buy_info = {
@@ -119,7 +125,7 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
 							logger.info("Changed higher limit to %f", track_info.higher_price_limit);
 						}
 						else if(current_price <= lower_price_limit) {
-							binance_api.spot_market_sell(symbol, current_price, quantity, SESSION_TYPE == session_type.TEST,
+							binance_api.spot_market_sell(symbol, current_price, quantity, test,
 								(price, quantity) => {
 									// onSuccess
 									track_info = { 
@@ -161,91 +167,38 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger) {
 };
 
 // Start future trading
-function start_future_trade(symbol, interval, tick_round, filters={}, logger) {
+function start_future_trade(symbol, interval, tick_round, filters={}, logger, test=true) {
 	logger.warn("Future trading is not implemented");
 };
 
-function run() {
-	if(SESSION_TYPE == session_type.TRADE) {
-		log_util.global_logger.info("Authenticating to Binance...");
+function run(test=true) {
+	if(!test) {
+		global_logger.info("Authenticating to Binance...");
 		binance_api.authenticate_user();
 	}
 	
-	log_util.global_logger.info("Fetching exchange info from Binance...");
+	global_logger.info("Fetching exchange info from Binance...");
 	binance_api.fetch_exchange_info().then(
 		(filters) => {
-			log_util.global_logger.info("Starting the bot for %s", COIN_PAIR);
+			global_logger.info("Starting the bot for %s", COIN_PAIR);
 	
-			const pair_logger = log_util.add_logger(COIN_PAIR, LOG_DIR);
+			const pair_logger = add_logger(COIN_PAIR, LOG_DIR);
 	
 			if(TRADE_TYPE == trade_type.SPOT) {
-				start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger);
+				start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger, test);
 			} else if(TRADE_TYPE == trade_type.FUTURE) {
-				start_future_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger);
+				start_future_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger, test);
 			}
 		},
 		(error) => {
-			log_util.global_logger.error(error);
+			global_logger.error(error);
 		}
 	).catch((error) => {
-		log_util.global_logger.error(error);
+		global_logger.error(error);
 	});
 }
 
-function test(){
-	const test_logger = log_util.test_logger(COIN_PAIR);
-	
-	binance_api.fetch_exchange_info().then(
-		(filters) => {
-			binance_api.fetch_candles(COIN_PAIR, CANDLE_INTERVAL, {limit : 700}).then(
-				(candles) => {
-					let signal_count = 0;
-					let first_candle_increase = 0;
-					let next_candle_increase = 0;
-					let first_and_next_candle_increase = 0;
 
-					for(let i = 200; i < candles.open_prices.length - 1; ++i) {
-						const open_prices = candles.open_prices.slice(0, i + 1);
-						const close_prices = candles.close_prices.slice(0, i + 1);
-
-						const signal = indicators.ema_scalper(open_prices, close_prices, filters[COIN_PAIR].price_digit, () => {});
-
-						if(signal) {
-							signal_count += 1;
-
-							const current_time = new Date(candles.open_times[i]);
-							test_logger.info("Signal : %s", current_time.toLocaleString());
-
-							const current_close_price = candles.close_prices[i];
-							const current_open_price = candles.open_prices[i];
-
-							const next_open_price = candles.open_prices[i + 1];
-							const next_close_price = candles.close_prices[i + 1];
-
-							if(current_close_price > current_open_price) first_candle_increase += 1;
-							if(next_close_price > next_open_price) next_candle_increase += 1;
-							if(current_close_price > current_open_price && next_close_price > next_open_price) first_and_next_candle_increase += 1;
-						}
-					}
-
-					test_logger.info("Only current candle is green : % %d", 100 * (first_candle_increase / signal_count));
-					test_logger.info("Only next candle is green : % %d", 100 * (next_candle_increase / signal_count));
-					test_logger.info("Both current and next candle is green : % %d", 100 * (first_and_next_candle_increase / signal_count));
-				},
-				(error) => {
-					log_util.global_logger.error(error);
-			}).catch((error) => {
-				log_util.global_logger.error(error);
-			});
-		},
-		(error) => {
-			log_util.global_logger.error(error);
-		}
-	).catch((error) => {
-		log_util.global_logger.error(error);
-	});
-	
-}
-
-//run();
-test();
+if(SESSION_TYPE == session_type.BACKTEST) backtest(COIN_PAIR, CANDLE_INTERVAL, PROFIT_MULTIPLIER, STOP_LOSS_MULTIPLIER);
+else if(SESSION_TYPE == session_type.LIVETEST) run(true);
+else if(SESSION_TYPE == session_type.TRADE) run(false);

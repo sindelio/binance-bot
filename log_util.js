@@ -30,7 +30,7 @@ const global_logger = winston.createLogger({
 
 const test_logger = (symbol)  => winston.createLogger({
     format: combine(
-        label({ label: "TEST " + symbol }),
+        label({ label: "TEST - " + symbol }),
         splat(),
         prettyPrint(),
         test_log_format

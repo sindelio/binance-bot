@@ -57,6 +57,8 @@ const fetch_candles = (symbol, interval, options={}) => {
 				const new_candles = {
 					open_prices : [],
 					close_prices : [],
+					low_prices : [],
+					high_prices : [],
 					open_times : []
 				}
 				
@@ -71,6 +73,8 @@ const fetch_candles = (symbol, interval, options={}) => {
 					
 					new_candles.open_prices[i] = Number(open);
 					new_candles.close_prices[i] = Number(close);
+					new_candles.low_prices[i] = Number(low);
+					new_candles.high_prices[i] = Number(high);
 					new_candles.open_times[i] = open_time;
 				}
 
