@@ -19,10 +19,10 @@ const session_type = {
 	TRADE: "trade",
 }
 
-const SESSION_TYPE = session_type.BACKTEST;
+const SESSION_TYPE = session_type.LIVETEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const LOG_DIR = "logs/15_percent_with_ema_support";
+const LOG_DIR = "logs/1.015_1.04_trailing_loss";
 
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.LIVETEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
@@ -31,6 +31,7 @@ const COIN_PAIR = process.argv[2] || "BANDUSDT";
 const TICK_ROUND = 30;
 const CANDLE_INTERVAL = "15m";
 
+const TAKE_PROFIT_MULTIPLIER = 1.04;
 const PROFIT_MULTIPLIER = 1.015;
 const STOP_LOSS_MULTIPLIER = 0.99;
 
@@ -78,7 +79,8 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 						const open_prices = candles.open_prices.concat(open).slice(1);
 						const close_prices = candles.close_prices.concat(tick_average).slice(1);					
 						
-						const signal = indicators.ema_scalper(open_prices, close_prices, filters.price_digit, logger.info);
+						const signal = indicators.sma_scalper_6_12(open_prices, close_prices, filters.price_digit, logger.info)
+									|| indicators.ema_scalper_13_21(open_prices, close_prices, filters.price_digit, logger.info);
 						
 						if(signal) {
 							// Buy from market
@@ -106,9 +108,9 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 								},
 								(error) => {
 									logger.error(error);
-								}).catch((error) => {
-									logger.error(error);
-								});
+							}).catch((error) => {
+								logger.error(error);
+							});
 						}
 					} else if(current_state == bot_state.TRADING && buy_info?.price && buy_info?.quantity) {
 						// Track for the price
@@ -116,7 +118,16 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 						const higher_price_limit = track_info?.higher_price_limit || (buy_info?.price || current_price) * PROFIT_MULTIPLIER;
 						const quantity = buy_info?.quantity || 0 ;
 
-						if(current_price <= lower_price_limit || current_price >= higher_price_limit) {
+						if(current_price >= higher_price_limit && current_price < buy_info.price * TAKE_PROFIT_MULTIPLIER) {
+							track_info = {
+								lower_price_limit : higher_price_limit * ((1 + STOP_LOSS_MULTIPLIER) * 0.5),
+								higher_price_limit : higher_price_limit * ((1 + PROFIT_MULTIPLIER) * 0.5),
+							};
+
+							logger.info("Lower limit increased to : %f", track_info.lower_price_limit);
+							logger.info("Higher limit increased to : %f", track_info.higher_price_limit);
+						}
+						else if(current_price <= lower_price_limit || current_price >= buy_info.price * TAKE_PROFIT_MULTIPLIER) {
 							binance_api.spot_market_sell(symbol, current_price, quantity, test,
 								(price, quantity) => {
 									// onSuccess
@@ -191,6 +202,10 @@ function run(test=true) {
 }
 
 
-if(SESSION_TYPE == session_type.BACKTEST) backtest(COIN_PAIR, CANDLE_INTERVAL, PROFIT_MULTIPLIER, STOP_LOSS_MULTIPLIER);
+if(SESSION_TYPE == session_type.BACKTEST) {
+	const pair_list = ["BANDUSDT", "DOTUSDT", "REEFUSDT"];
+	
+	pair_list.forEach((pair) => backtest(pair, CANDLE_INTERVAL, TAKE_PROFIT_MULTIPLIER, PROFIT_MULTIPLIER, STOP_LOSS_MULTIPLIER));
+}
 else if(SESSION_TYPE == session_type.LIVETEST) run(true);
 else if(SESSION_TYPE == session_type.TRADE) run(false);

@@ -36,7 +36,7 @@ const test_logger = (symbol)  => winston.createLogger({
         test_log_format
     ),
     transports: [
-        new winston.transports.Console(),
+        new winston.transports.File({ dirname: "logs/test_all", filename: symbol + ".log" }) 
     ],
     exceptionHandlers : [
         new winston.transports.Console(),
@@ -44,7 +44,7 @@ const test_logger = (symbol)  => winston.createLogger({
     exitOnError : false
 });
 
-const add_logger = (category, log_directory="./logs") => {
+const add_logger = (category, log_directory="logs") => {
     return winston.loggers.add(category, {
         format: combine(
             timestamp( {format: "MM-DD HH:mm:ss"}),

@@ -4,30 +4,50 @@ const { test_logger } = require('./logger')
 
 const precise = (x) => parseFloat(x.toFixed(4));
 
-const calculate_profit = (symbol, buying_price, buying_time, profit_multiplier, stop_loss_multipler) => {
+const calculate_profit = (symbol, buying_price, buying_time, take_profit_multiplier, profit_multiplier, stop_loss_multipler) => {
 	return new Promise((resolve, reject) => {
 		binance_api.fetch_candles(symbol, "1m", { startTime : buying_time }).then(
 			(candles) => {
 				let i = 0;
+				let lower_price_limit = buying_price * stop_loss_multipler;
+				let higher_price_limit = buying_price * profit_multiplier;
+
 				const size = Math.min(candles.high_prices.length, candles.low_prices.length);
 				
 				while(++i < size) {			
-					const isProfit = candles.high_prices[i] >= buying_price * profit_multiplier;
-					const isLoss = candles.low_prices[i] <= buying_price * stop_loss_multipler;
+					const isProfit = candles.high_prices[i] >= higher_price_limit;
+					const isLoss = candles.low_prices[i] <= lower_price_limit;
 
 					if(isProfit && isLoss) {
-						const profit = precise((profit_multiplier + stop_loss_multipler) * 0.5 - 1);
-						return resolve(profit);
+						const profit = precise((((lower_price_limit + higher_price_limit) * 0.5) / buying_price) - 1);
+						return resolve({
+								profit : profit,
+								selling_time : candles.close_times[i]
+							});
 					} else if(isProfit) {
-						const profit = precise((profit_multiplier - 1));
-						return resolve(profit);
+						if(higher_price_limit >= buying_price * take_profit_multiplier) {
+							const profit = precise((higher_price_limit / buying_price) - 1);
+							return resolve({
+									profit : profit,
+									selling_time : candles.close_times[i]
+								});
+						} else {
+							lower_price_limit = higher_price_limit * ((1 + stop_loss_multipler) * 0.5);
+							higher_price_limit = higher_price_limit * ((1 + profit_multiplier) * 0.5);
+						}
 					} else if(isLoss) {
-						const profit = precise((stop_loss_multipler - 1));
-						return resolve(profit);
+						const profit = precise((lower_price_limit / buying_price) - 1);
+						return resolve({
+							profit : profit,
+							selling_time : candles.close_times[i]
+						});
 					}
 				}
 				
-				return resolve(0);
+				return resolve({
+					profit : 0,
+					selling_time : buying_time
+				});
 			},
 			(error) => {
 				return reject(error);
@@ -50,7 +70,8 @@ const search_signal = (symbol, prev_open_prices, prev_close_prices, start_time, 
 
 					const open_prices = prev_open_prices.concat(open_price).slice(1);
 					const close_prices = prev_close_prices.concat(close_price).slice(1);
-					const signal = indicators.ema_scalper(open_prices, close_prices, price_digit);
+					const signal = indicators.sma_scalper_6_12(open_prices, close_prices, price_digit) 
+								|| indicators.ema_scalper_13_21(open_prices, close_prices, price_digit);
 
 					if(signal) {
 						return resolve({
@@ -71,49 +92,68 @@ const search_signal = (symbol, prev_open_prices, prev_close_prices, start_time, 
 	});
 }
 
-const backtest = (symbol, interval, profit_multiplier, stop_loss_multipler) => {
+const backtest = async (symbol, interval, take_profit_multiplier, profit_multiplier, stop_loss_multipler) => {
 	const logger = test_logger(symbol);
-	
+
 	binance_api.fetch_exchange_info().then(
 		(filters) => {
-			binance_api.fetch_candles(symbol, interval, {limit : 700}).then(
+			binance_api.fetch_candles(symbol, interval, {limit : 1000}).then(
 				async (candles) => {
 					let signal_count = 0;
-					let first_candle_increase = 0;
-					let next_candle_increase = 0;
-					let first_and_next_candle_increase = 0;
+					let win = 0;
+					let loss = 0;
 					let total_profit = 0;
+					let last_selling_time = 0;
 
-					for(let i = 200; i < candles.open_prices.length - 1; ++i) {
-						const prev_open_prices = candles.open_prices.slice(0, i);
-						const prev_close_prices = candles.close_prices.slice(0, i);
-						
-						const signal = await search_signal(symbol, prev_open_prices, prev_close_prices, candles.open_times[i], candles.close_times[i], filters[symbol].price_digit);
+					for(let i = 50; i < candles.open_prices.length - 1; ++i) {
 
-						if(signal && signal.buying_price && signal.buying_time) {
-							signal_count += 1;
+						if(candles.open_times[i] > last_selling_time) {
+							const prev_open_prices = candles.open_prices.slice(0, i);
+							const prev_close_prices = candles.close_prices.slice(0, i);
+							
+							const signal = await search_signal(symbol, prev_open_prices, prev_close_prices, candles.open_times[i], candles.close_times[i], filters[symbol].price_digit);
+	
+							if(signal && signal.buying_price && signal.buying_time) {
+								signal_count += 1;
+									
+								const { profit, selling_time } = await calculate_profit(symbol, signal.buying_price, signal.buying_time, take_profit_multiplier, profit_multiplier, stop_loss_multipler);
 								
-							const profit = await calculate_profit(symbol, signal.buying_price, signal.buying_time, profit_multiplier, stop_loss_multipler);
+								last_selling_time = selling_time;
+
+								if(profit > 0) win += 1;
+								if(profit < 0) loss += 1;
 	
-							logger.info("Buying price : %f and profit : % %f at %s", signal.buying_price, 100 * profit, new Date(signal.buying_time).toLocaleString());
-							total_profit += profit;
+								total_profit += profit;
 	
-							const current_close_price = candles.close_prices[i];
-							const current_open_price = candles.open_prices[i];
-	
-							const next_open_price = candles.open_prices[i + 1];
-							const next_close_price = candles.close_prices[i + 1];
-	
-							if(current_close_price > current_open_price) first_candle_increase += 1;
-							if(next_close_price > next_open_price) next_candle_increase += 1;
-							if(current_close_price > current_open_price && next_close_price > next_open_price) first_and_next_candle_increase += 1;
+								// logger.info("Buying price : %f and profit : % %f at %s", signal.buying_price, 100 * profit, new Date(signal.buying_time).toLocaleString());
+							}
+						
+							// const open_prices = candles.open_prices.slice(0, i + 1);
+							// const close_prices = candles.close_prices.slice(0, i + 1);
+
+							// const signal = indicators.sma_scalper(open_prices, close_prices, filters[symbol].price_digit);
+
+							// const buying_price = candles.close_prices[i];
+							// const buying_time = candles.close_times[i];
+
+							// if(signal) {
+							// 	signal_count += 1;
+									
+							// 	const { profit, selling_time } = await calculate_profit(symbol, buying_price, buying_time, profit_multiplier, stop_loss_multipler);
+
+							// last_selling_time = selling_time;
+
+							// 	if(profit > 0) win += 1;
+							// 	if(profit < 0) loss += 1;
+
+							// 	total_profit += profit;
+
+							// 	logger.info("Buying price : %f and profit : % %f at %s", buying_price, 100 * profit, new Date(buying_time).toLocaleString());
+							// }
 						}
 					}
 
-					logger.info("Only current candle is green : % %d", 100 * (first_candle_increase / signal_count));
-					logger.info("Only next candle is green : % %d", 100 * (next_candle_increase / signal_count));
-					logger.info("Both current and next candle is green : % %d", 100 * (first_and_next_candle_increase / signal_count));
-					logger.info("Total profit : % %d at %d buy signal", precise(100 * total_profit), signal_count);
+					logger.info("Win : %d , Loss : %d, Profit : % %d", win, loss, precise(100 * total_profit));
 				},
 				(error) => {
 					logger.error(error);

@@ -52,7 +52,7 @@ const fetch_candles = (symbol, interval, options={}) => {
 	return new Promise((resolve, reject) => {
 		binance_client.candlesticks(symbol, interval, (error, candles, symbol) => {
 			if (error) {
-				return reject("Error occured fetching candles " + error.body);
+				return reject("Error occured fetching candles " + error);
 			} else {
 				const new_candles = {
 					open_prices : [],

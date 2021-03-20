@@ -1,4 +1,4 @@
-for pair in BANDUSDT LTCUSDT YFIUSDT YFIIUSDT ZECUSDT DOTUSDT REEFUSDT
+for pair in BANDUSDT DOTUSDT REEFUSDT
 do
     ttab node bot.js ${pair}
 done;
