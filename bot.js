@@ -19,7 +19,7 @@ const session_type = {
 	TRADE: "trade",
 }
 
-const SESSION_TYPE = session_type.LIVETEST;
+const SESSION_TYPE = session_type.BACKTEST;
 const TRADE_TYPE = trade_type.SPOT;
 
 const LOG_DIR = "logs/1.015_1.04_trailing_loss";
@@ -31,8 +31,8 @@ const COIN_PAIR = process.argv[2] || "BANDUSDT";
 const TICK_ROUND = 30;
 const CANDLE_INTERVAL = "15m";
 
-const TAKE_PROFIT_MULTIPLIER = 1.04;
-const PROFIT_MULTIPLIER = 1.015;
+const TAKE_PROFIT_MULTIPLIER = 1.02;
+const PROFIT_MULTIPLIER = 1.02;
 const STOP_LOSS_MULTIPLIER = 0.99;
 
 // Add latest candle to the list
@@ -203,7 +203,7 @@ function run(test=true) {
 
 
 if(SESSION_TYPE == session_type.BACKTEST) {
-	const pair_list = ["BANDUSDT", "DOTUSDT", "REEFUSDT"];
+	const pair_list = ["BANDUSDT", "REEFUSDT", "DOTUSDT", "LTCUSDT", "BNBUSDT"];
 	
 	pair_list.forEach((pair) => backtest(pair, CANDLE_INTERVAL, TAKE_PROFIT_MULTIPLIER, PROFIT_MULTIPLIER, STOP_LOSS_MULTIPLIER));
 }

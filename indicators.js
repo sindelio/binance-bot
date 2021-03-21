@@ -18,7 +18,7 @@ const ema_scalper_13_21 = (open_prices, close_prices, price_digit=4, onLog=()=>{
 }
 
 // Calculate ema12 and ema6
-const ema_scalper_6_12 = (open_prices, close_prices, price_digit=4, onLog=()=>{}) => {
+const ema_scalper_6_12 = (close_prices, price_digit=4, onLog=()=>{}) => {
 	const precise = (x) => parseFloat(x.toFixed(price_digit));
 
 	const [prev_ema12, curr_ema12] = EMA.calculate({period: 12, values: close_prices}).slice(-2).map(precise);
@@ -35,7 +35,7 @@ const ema_scalper_6_12 = (open_prices, close_prices, price_digit=4, onLog=()=>{}
 }
 
 // Calculate sma12 and sma6
-const sma_scalper_6_12 = (open_prices, close_prices, price_digit=4, onLog=()=>{}) => {
+const sma_scalper_6_12 = (close_prices, price_digit=4, onLog=()=>{}) => {
 	const precise = (x) => parseFloat(x.toFixed(price_digit));
 
 	const [prev_sma6, curr_sma6] = SMA.calculate({period: 6, values: close_prices}).slice(-2).map(precise);
