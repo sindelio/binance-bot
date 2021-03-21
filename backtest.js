@@ -38,13 +38,15 @@ const calculate_profit = (high_prices, low_prices, buying_price, take_profit_mul
 	return profit;
 }
 
-const search_signal = async (symbol, prev_open_prices, prev_close_prices, start_time, indicator, onSignal) => {
+const search_signal = async (symbol, interval, prev_open_prices, prev_close_prices, start_time, indicator, onSignal) => {
 
 	const candles = await binance_api.fetch_candles(symbol, "1m", { startTime : start_time });
 
-	if(candles.close_prices.length < 15) return;
+	let length = parseInt(interval.replace("m", ""));
 
-	for(let i = 0; i < 15; ++i) {
+	if(candles.close_prices.length < length) return 0;
+
+	for(let i = 0; i < length; ++i) {
 		const open_price = candles.open_prices[i];
 		const close_price = candles.close_prices[i];
 
@@ -53,54 +55,43 @@ const search_signal = async (symbol, prev_open_prices, prev_close_prices, start_
 
 		const signal = indicator(open_prices, close_prices);
 
-
-		if(signal) {
-			const buying_price = close_price;
-			const buying_time = candles.close_times[i];
-
-			onSignal(candles.high_prices.slice(i + 1), candles.low_prices.slice(i + 1), buying_price, buying_time);
-			break;
-		}
+		if(signal) return onSignal(candles.high_prices.slice(i + 1), candles.low_prices.slice(i + 1), close_price, candles.close_times[i]);
 	}
+
+	return 0;
 }
 
 const backtest = async (symbol, interval, take_profit_multiplier, profit_multiplier, stop_loss_multipler) => {
 	const logger = test_logger(symbol);
+
 	const indicator = (open_prices, close_prices) => indicators.sma_scalper_6_12(close_prices, 4) || indicators.ema_scalper_13_21(open_prices, close_prices, 4);
 
-	binance_api.fetch_candles(symbol, interval, {limit : 600}).then(
-		async (candles) => {
-			let signal_count = win = loss = total_profit = 0;
-
-			for(let i = 100; i < candles.open_prices.length - 1; ++i) {
-
-				const prev_open_prices = candles.open_prices.slice(0, i);
-				const prev_close_prices = candles.close_prices.slice(0, i);
-				
-				await search_signal(symbol, prev_open_prices, prev_close_prices, candles.open_times[i], indicator, 
-					(high_prices, low_prices, buying_price, buying_time) => {
-						// onSignal
-						signal_count += 1;
-						
-						const profit = calculate_profit(high_prices, low_prices, buying_price, take_profit_multiplier, profit_multiplier, stop_loss_multipler);
-
-						if(profit > 0) win += 1;
-						if(profit < 0) loss += 1;
-
-						total_profit += profit;
-
-						logger.info("Buying price : %f and profit : % %f at %s", buying_price, 100 * profit, new Date(buying_time).toLocaleString());
-				});
-			}
-
-			logger.info("Win : %d , Loss : %d, Profit : % %d", win, loss, precise(100 * total_profit));
-		},
-		(error) => {
-			logger.error(error);
-	}).catch((error) => {
-		logger.error(error);
-	});
+	const candles = await binance_api.fetch_candles(symbol, interval, {limit : 600}); 
 	
+	let win = loss = total_profit = 0;
+
+	for(let i = 100; i < candles.open_prices.length - 1; ++i) {
+
+		const prev_open_prices = candles.open_prices.slice(0, i);
+		const prev_close_prices = candles.close_prices.slice(0, i);
+		
+		const profit = await search_signal(symbol, interval, prev_open_prices, prev_close_prices, candles.open_times[i], indicator, 
+			(high_prices, low_prices, buying_price, buying_time) => {
+
+				const profit = calculate_profit(high_prices, low_prices, buying_price, take_profit_multiplier, profit_multiplier, stop_loss_multipler);
+
+				logger.info("Buying price : %f and profit : % %f at %s", buying_price, 100 * profit, new Date(buying_time).toLocaleString());
+
+				return profit;
+		});
+
+		if(profit > 0) win += 1;
+		else if(profit < 0) loss += 1;
+
+		total_profit += profit;
+	}
+
+	logger.info("Win : %d , Loss : %d, Profit : % %d", win, loss, precise(100 * total_profit));
 }
 
 exports.backtest = backtest

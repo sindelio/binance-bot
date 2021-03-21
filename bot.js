@@ -31,8 +31,8 @@ const COIN_PAIR = process.argv[2] || "BANDUSDT";
 const TICK_ROUND = 30;
 const CANDLE_INTERVAL = "15m";
 
-const TAKE_PROFIT_MULTIPLIER = 1.02;
-const PROFIT_MULTIPLIER = 1.02;
+const TAKE_PROFIT_MULTIPLIER = 1.025;
+const PROFIT_MULTIPLIER = 1.025;
 const STOP_LOSS_MULTIPLIER = 0.99;
 
 // Add latest candle to the list
@@ -201,11 +201,6 @@ function run(test=true) {
 	});
 }
 
-
-if(SESSION_TYPE == session_type.BACKTEST) {
-	const pair_list = ["BANDUSDT", "REEFUSDT", "DOTUSDT", "LTCUSDT", "BNBUSDT"];
-	
-	pair_list.forEach((pair) => backtest(pair, CANDLE_INTERVAL, TAKE_PROFIT_MULTIPLIER, PROFIT_MULTIPLIER, STOP_LOSS_MULTIPLIER));
-}
+if(SESSION_TYPE == session_type.BACKTEST) backtest(COIN_PAIR, CANDLE_INTERVAL, TAKE_PROFIT_MULTIPLIER, PROFIT_MULTIPLIER, STOP_LOSS_MULTIPLIER);
 else if(SESSION_TYPE == session_type.LIVETEST) run(true);
 else if(SESSION_TYPE == session_type.TRADE) run(false);

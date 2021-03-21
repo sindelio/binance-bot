@@ -36,7 +36,7 @@ const test_logger = (symbol)  => winston.createLogger({
         test_log_format
     ),
     transports: [
-        new winston.transports.File({ dirname: "logs/test_all", filename: symbol + ".log" }) 
+        new winston.transports.File({ dirname: "logs/test", filename: symbol + ".log" }) 
     ],
     exceptionHandlers : [
         new winston.transports.Console(),
