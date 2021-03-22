@@ -22,7 +22,7 @@ const session_type = {
 const SESSION_TYPE = session_type.BACKTEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const LOG_DIR = "logs/1.015_1.04_trailing_loss";
+const LOG_DIR = "logs/";
 
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.LIVETEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
@@ -79,7 +79,7 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 						const open_prices = candles.open_prices.concat(open).slice(1);
 						const close_prices = candles.close_prices.concat(tick_average).slice(1);					
 						
-						const signal = indicators.sma_scalper_6_12(open_prices, close_prices, filters.price_digit, logger.info)
+						const signal = indicators.sma_scalper_6_12(close_prices, filters.price_digit, logger.info)
 									|| indicators.ema_scalper_13_21(open_prices, close_prices, filters.price_digit, logger.info);
 						
 						if(signal) {
