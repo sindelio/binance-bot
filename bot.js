@@ -2,11 +2,7 @@ const { backtest } = require('./backtest');
 const binance_api = require('./binance_api');
 const indicators = require('./indicators')
 const { global_logger, add_logger, get_logger } = require('./logger')
-
-const bot_state = {
-	SEARCHING : "searching",
-	TRADING : "trading"
-}
+const { Tracker } = require('./tracker')
 
 const trade_type = {
 	SPOT: "spot",
@@ -19,10 +15,10 @@ const session_type = {
 	TRADE: "trade",
 }
 
-const SESSION_TYPE = session_type.BACKTEST;
+const SESSION_TYPE = session_type.LIVETEST;
 const TRADE_TYPE = trade_type.SPOT;
 
-const LOG_DIR = "logs/";
+const LOG_DIR = "logs/tracker";
 
 const BALANCE_LIMIT = (SESSION_TYPE == session_type.LIVETEST) ? 1000 : 15;
 const TRADING_CURRENCY = "USDT";
@@ -53,17 +49,16 @@ function add_candle(candles, latest_candle) {
 }
 
 // Start spot trading
-function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test=true) {
+function start_spot_trade(symbol, interval, tick_round, filters={}, logger, tracker, indicator, test=true) {
 	logger.info("Fetching candles for interval %s", interval);
 	
 	binance_api.fetch_candles(symbol, interval).then(
 		(candles) => {
-			let current_state = bot_state.SEARCHING;
-
-			let buy_info = track_info = null;	
-			let total_profit = tick_sum = tick_count = 0;
+			logger.info("Subscribing to pair : %s", symbol);
 		
-			logger.info("Subscribing to candles websocket for %s", symbol);
+			let tick_sum = tick_count = 0;
+
+			tracker.start();
 
 			binance_api.ws_candles(symbol, interval, 
 				(open, close, event_time, isFinal) => {
@@ -72,37 +67,30 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 					tick_count += 1;
 					tick_sum += current_price;
 
-					if(current_state == bot_state.SEARCHING && tick_count >= tick_round) {
+					if(tick_count >= tick_round) {
 						// Search for opportunity when average is calculated
 						const tick_average = tick_sum / tick_count;
 		
 						const open_prices = candles.open_prices.concat(open).slice(1);
 						const close_prices = candles.close_prices.concat(tick_average).slice(1);					
+
+						const buy_signal = indicator(open_prices, close_prices, filters.price_digit);
 						
-						const signal = indicators.sma_scalper_6_12(close_prices, filters.price_digit, logger.info)
-									|| indicators.ema_scalper_13_21(open_prices, close_prices, filters.price_digit, logger.info);
-						
-						if(signal) {
+						if(buy_signal) {
 							// Buy from market
 							binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, test).then(
 								({price, quantity}) => {
 									binance_api.spot_market_buy(symbol, price, quantity, test, 
 										(price, quantity) => {
 											// onSuccess
-											buy_info = {
-												price: price ,
-												quantity: quantity
-											};
-			
-											logger.info("Market buy from price : %f and quantity : %f", buy_info.price, buy_info.quantity);
-			
-											// Reset variables before state transition
-											track_info = null;
-											current_state = bot_state.TRADING;
+											logger.info("Market Buy - price : %f , quantity : %f", price, quantity);
+
+											// Add to track list for selling later
+											tracker.add(price, quantity);
 										}, 
 										(error) => {
 											// onError
-											logger.error("Error occured during market buy : %s", error);
+											logger.error("Error occured during Market Buy : %s", error);
 										}
 									);
 								},
@@ -111,49 +99,6 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, test
 							}).catch((error) => {
 								logger.error(error);
 							});
-						}
-					} else if(current_state == bot_state.TRADING && buy_info?.price && buy_info?.quantity) {
-						// Track for the price
-						const lower_price_limit = track_info?.lower_price_limit || (buy_info?.price || current_price) * STOP_LOSS_MULTIPLIER; 
-						const higher_price_limit = track_info?.higher_price_limit || (buy_info?.price || current_price) * PROFIT_MULTIPLIER;
-						const quantity = buy_info?.quantity || 0 ;
-
-						if(current_price >= higher_price_limit && current_price < buy_info.price * TAKE_PROFIT_MULTIPLIER) {
-							track_info = {
-								lower_price_limit : higher_price_limit * ((1 + STOP_LOSS_MULTIPLIER) * 0.5),
-								higher_price_limit : higher_price_limit * ((1 + PROFIT_MULTIPLIER) * 0.5),
-							};
-
-							logger.info("Lower limit increased to : %f", track_info.lower_price_limit);
-							logger.info("Higher limit increased to : %f", track_info.higher_price_limit);
-						}
-						else if(current_price <= lower_price_limit || current_price >= buy_info.price * TAKE_PROFIT_MULTIPLIER) {
-							binance_api.spot_market_sell(symbol, current_price, quantity, test,
-								(price, quantity) => {
-									// onSuccess
-									track_info = { 
-										sell_price : price,
-										sell_quantity : quantity 
-									};
-									
-									logger.info("Market sell from price : %f and quantity : %f", track_info.sell_price, track_info.sell_quantity);
-									
-									const profit = track_info.sell_price * track_info.sell_quantity - buy_info.price * buy_info.quantity;
-									logger.info("Profit : %f", profit);
-			
-									total_profit += profit;
-									logger.info("Total profit : %f", total_profit);
-									
-									// Reset variables before state transition
-									buy_info = null;
-									track_info = null;
-									current_state = bot_state.SEARCHING;
-								},
-								(error) => {
-									// onError
-									logger.error("Error occured during market sell : %s", error);
-								}
-							);
 						}
 					}
 		
@@ -183,12 +128,19 @@ function run(test=true) {
 	global_logger.info("Fetching exchange info from Binance...");
 	binance_api.fetch_exchange_info().then(
 		(filters) => {
-			global_logger.info("Starting the bot for %s", COIN_PAIR);
+			global_logger.info("Starting the bot for %s...", COIN_PAIR);
 	
 			const pair_logger = add_logger(COIN_PAIR, LOG_DIR);
-	
+			const tracker = new Tracker(COIN_PAIR, STOP_LOSS_MULTIPLIER, PROFIT_MULTIPLIER, TAKE_PROFIT_MULTIPLIER, pair_logger);
+			const indicator = (open_prices, close_prices, price_digit) => {
+				const sma_indicator = indicators.sma_scalper_6_12(close_prices, price_digit, pair_logger.info);
+				const ema_indicator = indicators.ema_scalper_13_21(open_prices, close_prices, price_digit, pair_logger.info);
+
+				return sma_indicator || ema_indicator;
+			}
+			
 			if(TRADE_TYPE == trade_type.SPOT) {
-				start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger, test);
+				start_spot_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger, tracker, indicator, test);
 			} else if(TRADE_TYPE == trade_type.FUTURE) {
 				start_future_trade(COIN_PAIR, CANDLE_INTERVAL, TICK_ROUND, filters[COIN_PAIR], pair_logger, test);
 			}
