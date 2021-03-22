@@ -55,7 +55,8 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 	binance_api.fetch_candles(symbol, interval).then(
 		(candles) => {
 			logger.info("Subscribing to pair : %s", symbol);
-		
+			
+			let wait_for_next_candle = false;
 			let tick_sum = tick_count = 0;
 
 			tracker.start();
@@ -67,7 +68,7 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 					tick_count += 1;
 					tick_sum += current_price;
 
-					if(tick_count >= tick_round) {
+					if(!wait_for_next_candle && tick_count >= tick_round) {
 						// Search for opportunity when average is calculated
 						const tick_average = tick_sum / tick_count;
 		
@@ -87,6 +88,9 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 
 											// Add to track list for selling later
 											tracker.add(price, quantity);
+
+											// Wait for next candle to start
+											wait_for_next_candle = true;
 										}, 
 										(error) => {
 											// onError
@@ -102,8 +106,12 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 						}
 					}
 		
-					if(isFinal) add_candle(candles, {open, close, event_time});
-					if(isFinal || tick_count >= tick_round) tick_sum = tick_count = 0;
+					if(isFinal) {
+						add_candle(candles, {open, close, event_time})
+						wait_for_next_candle = false;
+						tick_sum = tick_count = 0;
+					}
+					if(tick_count >= tick_round) tick_sum = tick_count = 0;
 				}
 			);
 		},
