@@ -50,7 +50,7 @@ function add_candle(candles, latest_candle) {
 
 // Start spot trading
 function start_spot_trade(symbol, interval, tick_round, filters={}, logger, tracker, indicator, test=true) {
-	logger.info("Fetching candles for interval %s", interval);
+	logger.info("Fetching latest candles for interval %s", interval);
 	
 	binance_api.fetch_candles(symbol, interval).then((candles) => {
 		let wait_for_next_candle = false;
@@ -75,25 +75,26 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 				
 				if(buy_signal) {
 					// Buy from market
-					binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, test).then(
-						({price, quantity}) => {
-							binance_api.spot_market_buy(symbol, price, quantity, test,
-								(price, quantity) => {
-									// onSuccess
-									logger.info("Market Buy - price : %f , quantity : %f", price, quantity);
+					binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, test)
+					.then(({price, quantity}) => {
+						binance_api.spot_market_buy(symbol, price, quantity, test,
+							(price, quantity) => {
+								// onSuccess
+								logger.info("Market Buy - price : %f , quantity : %f", price, quantity);
 
-									// Add to track list for selling later
-									tracker.add(price, quantity);
+								// Add to track list for selling later
+								tracker.add(price, quantity);
 
-									// Wait for next candle to start
-									wait_for_next_candle = true;
-								},
-								(error) => {
-									// onError
-									logger.error("Error occured during Market Buy : %s", error);
-								}
-							);
-						}, logger.error).catch(logger.error);
+								// Wait for next candle to start
+								wait_for_next_candle = true;
+							},
+							(error) => {
+								// onError
+								logger.error("Error occured during Market Buy : %s", error);
+							}
+						);
+					}, logger.error)
+					.catch(logger.error);
 				}
 			}
 
@@ -104,8 +105,14 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 			}
 			if(tick_count >= tick_round) tick_sum = tick_count = 0;
 
-		}, () => logger.info("Subscribed to candlestick stream of pair : %s", symbol));
-	}, logger.error).catch(logger.error);
+		}, 
+		async () => {
+			logger.info("Fetching latest candles for interval %s", interval);
+			candles = await binance_api.fetch_candles(symbol, interval);
+			logger.info("Subscribed to candlestick websocket of pair : %s", symbol);
+		});
+	}, logger.error)
+	.catch(logger.error);
 };
 
 // Start future trading
