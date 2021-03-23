@@ -101,11 +101,11 @@ const listen_candles_stream = (symbol, interval, onUpdate=()=>{}, onOpen=()=>{})
 	}, onOpen);
 }
 
-const listen_mini_ticker = (symbol, onUpdate=()=>{}) => {
+const listen_mini_ticker = (symbol, onUpdate=()=>{}, onOpen=()=>{}) => {
 	binance_client.websockets.miniTicker(markets => {
-		const pair_update = markets[symbol];
-		if(pair_update) onUpdate(pair_update.close);
-	});
+		const mini_tick = markets[symbol];
+		if(mini_tick) onUpdate(mini_tick);
+	}, onOpen);
 }
 
 const get_price = (symbol) => {

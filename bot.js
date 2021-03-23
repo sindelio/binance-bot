@@ -52,77 +52,60 @@ function add_candle(candles, latest_candle) {
 function start_spot_trade(symbol, interval, tick_round, filters={}, logger, tracker, indicator, test=true) {
 	logger.info("Fetching candles for interval %s", interval);
 	
-	binance_api.fetch_candles(symbol, interval).then(
-		(candles) => {
-			logger.info("Subscribing to pair : %s", symbol);
-			
-			let wait_for_next_candle = false;
-			let tick_sum = tick_count = 0;
+	binance_api.fetch_candles(symbol, interval).then((candles) => {
+		let wait_for_next_candle = false;
+		let tick_sum = tick_count = 0;
 
-			tracker.start();
+		tracker.start();
 
-			binance_api.listen_candles_stream(symbol, interval, 
-				(open, close, event_time, isFinal) => {
-					const current_price = Number.parseFloat(close);
-		
-					tick_count += 1;
-					tick_sum += current_price;
+		binance_api.listen_candles_stream(symbol, interval, (open, close, event_time, isFinal) => {
+			const current_price = Number.parseFloat(close);
 
-					if(!wait_for_next_candle && tick_count >= tick_round) {
-						// Search for opportunity when average is calculated
-						const tick_average = tick_sum / tick_count;
-		
-						const open_prices = candles.open_prices.concat(open).slice(1);
-						const close_prices = candles.close_prices.concat(tick_average).slice(1);					
+			tick_count += 1;
+			tick_sum += current_price;
 
-						const buy_signal = indicator(open_prices, close_prices, filters.price_digit);
-						
-						if(buy_signal) {
-							// Buy from market
-							binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, test).then(
-								({price, quantity}) => {
-									binance_api.spot_market_buy(symbol, price, quantity, test, 
-										(price, quantity) => {
-											// onSuccess
-											logger.info("Market Buy - price : %f , quantity : %f", price, quantity);
+			if(!wait_for_next_candle && tick_count >= tick_round) {
+				// Search for opportunity when average is calculated
+				const tick_average = tick_sum / tick_count;
 
-											// Add to track list for selling later
-											tracker.add(price, quantity);
+				const open_prices = candles.open_prices.concat(open).slice(1);
+				const close_prices = candles.close_prices.concat(tick_average).slice(1);
 
-											// Wait for next candle to start
-											wait_for_next_candle = true;
-										}, 
-										(error) => {
-											// onError
-											logger.error("Error occured during Market Buy : %s", error);
-										}
-									);
+				const buy_signal = indicator(open_prices, close_prices, filters.price_digit);
+				
+				if(buy_signal) {
+					// Buy from market
+					binance_api.calculate_buy_quantity(symbol, TRADING_CURRENCY, BALANCE_LIMIT, filters, test).then(
+						({price, quantity}) => {
+							binance_api.spot_market_buy(symbol, price, quantity, test,
+								(price, quantity) => {
+									// onSuccess
+									logger.info("Market Buy - price : %f , quantity : %f", price, quantity);
+
+									// Add to track list for selling later
+									tracker.add(price, quantity);
+
+									// Wait for next candle to start
+									wait_for_next_candle = true;
 								},
 								(error) => {
-									logger.error(error);
-							}).catch((error) => {
-								logger.error(error);
-							});
-						}
-					}
-		
-					if(isFinal) {
-						add_candle(candles, {open, close, event_time})
-						wait_for_next_candle = false;
-						tick_sum = tick_count = 0;
-					}
-					if(tick_count >= tick_round) tick_sum = tick_count = 0;
-				},
-				() => {
-					global_logger.info("Websocket opened/reconnected !");
+									// onError
+									logger.error("Error occured during Market Buy : %s", error);
+								}
+							);
+						}, logger.error).catch(logger.error);
 				}
-			);
-		},
-		(error) => {
-			logger.error(error);
-	}).catch((error) => {
-		logger.error(error);
-	});
+			}
+
+			if(isFinal) {
+				add_candle(candles, {open, close, event_time})
+				wait_for_next_candle = false;
+				tick_sum = tick_count = 0;
+			}
+			if(tick_count >= tick_round) tick_sum = tick_count = 0;
+
+		}, () => logger.info("Subscribed to candlestick stream of pair : %s", symbol));
+	}, logger.error).catch(logger.error);
 };
 
 // Start future trading

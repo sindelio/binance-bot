@@ -17,9 +17,11 @@ class Tracker {
     }
 
     start() {
-        binance_api.listen_mini_ticker(this.pair, (current_price) => {
+        binance_api.listen_mini_ticker(this.pair, (tick) => {
             for (let i = this.track_list.length - 1; i >= 0; --i) {
                 const track = this.track_list[i];
+                
+                const current_price = tick.close;
                 
                 if(current_price >= track.higher_price_limit && current_price < track.buying_price * this.take_profit_multiplier) {
 
@@ -51,7 +53,7 @@ class Tracker {
                     );
                 }
             }
-        });
+        }, () => this.logger.info("Subscribed to mini ticker stream of pair : %s", this.pair));
     } 
 
     add(price, quantity) {
