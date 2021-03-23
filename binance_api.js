@@ -297,10 +297,14 @@ const spot_market_sell = (symbol, price, quantity, test=true, onSuccess, onError
 }
 
 exports.authenticate_user = authenticate_user;
+
 exports.fetch_exchange_info = fetch_exchange_info;
 exports.fetch_candles = fetch_candles;
-exports.listen_candles_stream = listen_candles_stream;
-exports.listen_mini_ticker = listen_mini_ticker;
-exports.calculate_buy_quantity = calculate_buy_quantity;
+
 exports.spot_market_buy = spot_market_buy;
 exports.spot_market_sell = spot_market_sell;
+
+exports.listen_candles_stream = listen_candles_stream;
+exports.listen_mini_ticker = listen_mini_ticker;
+
+exports.calculate_buy_quantity = calculate_buy_quantity;
