@@ -46,16 +46,21 @@ const search_signal = async (symbol, interval, prev_open_prices, prev_close_pric
 
 	if(candles.close_prices.length < length) return 0;
 
-	for(let i = 0; i < length; ++i) {
-		const open_price = candles.open_prices[i];
-		const close_price = candles.close_prices[i];
+	const open_price = candles.open_prices[0];
+
+	for(let i = 2; i < length; i += 3) {
+		const average_0 = (candles.close_prices[i - 2] + candles.open_prices[i - 2] + candles.low_prices[i - 2] + candles.high_prices[i - 2]) * 0.25;
+		const average_1 = (candles.close_prices[i - 1] + candles.open_prices[i - 1] + candles.low_prices[i - 1] + candles.high_prices[i - 1]) * 0.25;
+		const average_2 = (candles.close_prices[i] + candles.open_prices[i] + candles.low_prices[i] + candles.high_prices[i]) * 0.25;
+
+		const average_price = (average_0 + average_1 + average_2) / 3;
 
 		const open_prices = prev_open_prices.concat(open_price).slice(1);
-		const close_prices = prev_close_prices.concat(close_price).slice(1);
+		const close_prices = prev_close_prices.concat(average_price).slice(1);
 
 		const signal = indicator(open_prices, close_prices);
 
-		if(signal) return onSignal(candles.high_prices.slice(i + 1), candles.low_prices.slice(i + 1), close_price, candles.close_times[i]);
+		if(signal) return onSignal(candles.high_prices.slice(i + 1), candles.low_prices.slice(i + 1), average_price, candles.close_times[i]);
 	}
 
 	return 0;
@@ -64,13 +69,14 @@ const search_signal = async (symbol, interval, prev_open_prices, prev_close_pric
 const backtest = async (symbol, interval, take_profit_multiplier, profit_multiplier, stop_loss_multipler) => {
 	const logger = test_logger(symbol);
 
-	const indicator = (open_prices, close_prices) => indicators.sma_scalper_6_12(close_prices, 4) || indicators.ema_scalper_13_21(open_prices, close_prices, 4);
+	const indicator = (open_prices, close_prices) => indicators.ema_scalper_13_21(open_prices, close_prices, 4) 
+													|| indicators.sma_scalper_6_12(close_prices, 4);
 
 	const candles = await binance_api.fetch_candles(symbol, interval, {limit : 600}); 
 	
-	let win = loss = total_profit = 0;
+	let signal_count = win = loss = total_profit = 0;
 
-	for(let i = 100; i < candles.open_prices.length - 1; ++i) {
+	for(let i = 400; i < candles.open_prices.length - 1; ++i) {
 
 		const prev_open_prices = candles.open_prices.slice(0, i);
 		const prev_close_prices = candles.close_prices.slice(0, i);
@@ -78,20 +84,22 @@ const backtest = async (symbol, interval, take_profit_multiplier, profit_multipl
 		const profit = await search_signal(symbol, interval, prev_open_prices, prev_close_prices, candles.open_times[i], indicator, 
 			(high_prices, low_prices, buying_price, buying_time) => {
 
+				signal_count += 1;
+
 				const profit = calculate_profit(high_prices, low_prices, buying_price, take_profit_multiplier, profit_multiplier, stop_loss_multipler);
 
-				logger.info("Buying price : %f and profit : % %f at %s", buying_price, 100 * profit, new Date(buying_time).toLocaleString());
+				// logger.info("Buying price : %f and profit : % %f at %s", buying_price, 100 * profit, new Date(buying_time).toLocaleString());
 
 				return profit;
 		});
-
+		
 		if(profit > 0) win += 1;
 		else if(profit < 0) loss += 1;
 
 		total_profit += profit;
 	}
 
-	logger.info("Win : %d , Loss : %d, Profit : % %d", win, loss, precise(100 * total_profit));
+	logger.info("Win : %d , Loss : %d, Profit : % %d", win, loss, precise(100 * total_profit / signal_count));
 }
 
 exports.backtest = backtest

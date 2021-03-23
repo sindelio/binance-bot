@@ -61,7 +61,7 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 
 			tracker.start();
 
-			binance_api.ws_candles(symbol, interval, 
+			binance_api.listen_candles_stream(symbol, interval, 
 				(open, close, event_time, isFinal) => {
 					const current_price = Number.parseFloat(close);
 		
@@ -112,6 +112,9 @@ function start_spot_trade(symbol, interval, tick_round, filters={}, logger, trac
 						tick_sum = tick_count = 0;
 					}
 					if(tick_count >= tick_round) tick_sum = tick_count = 0;
+				},
+				() => {
+					global_logger.info("Websocket opened/reconnected !");
 				}
 			);
 		},

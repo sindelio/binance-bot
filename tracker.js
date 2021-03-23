@@ -17,7 +17,7 @@ class Tracker {
     }
 
     start() {
-        binance_api.mini_ticker(this.pair, (current_price) => {
+        binance_api.listen_mini_ticker(this.pair, (current_price) => {
             for (let i = this.track_list.length - 1; i >= 0; --i) {
                 const track = this.track_list[i];
                 

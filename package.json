@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "node-binance-api": "^0.12.5",
+    "node-binance-api": "git+https://github.com/ilker1996/node-binance-api.git",
     "technicalindicators": "^2.0.5",
     "ttab": "^0.7.0",
     "winston": "^3.3.3"
